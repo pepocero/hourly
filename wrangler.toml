@@ -6,10 +6,20 @@ compatibility_flags = ["nodejs_compat"]
 [env.production]
 name = "hourly-prod"
 vars = { JWT_SECRET = "hourly-super-secret-jwt-key-production-2024", ENVIRONMENT = "production" }
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "hourly-db"
+database_id = "f990215e-de16-48e3-ad1a-5a1c9592683e"
+migrations_dir = "migrations"
 
 [env.staging]
 name = "hourly-staging"
 vars = { JWT_SECRET = "hourly-super-secret-jwt-key-staging-2024", ENVIRONMENT = "staging" }
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "hourly-db"
+database_id = "f990215e-de16-48e3-ad1a-5a1c9592683e"
+migrations_dir = "migrations"
 
 [[d1_databases]]
 binding = "DB"
