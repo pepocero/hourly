@@ -67,6 +67,11 @@ function ProyectoDetails({ proyecto, onClose }) {
     return hours.toFixed(2);
   };
 
+  const formatTime = (time) => {
+    if (!time) return '-';
+    return time.substring(0, 5); // HH:MM
+  };
+
   if (!proyecto) return null;
 
   return (
@@ -90,7 +95,7 @@ function ProyectoDetails({ proyecto, onClose }) {
                 {proyecto.nombre}
               </h2>
               <p className="text-sm text-gray-500">
-                ${proyecto.tarifa_hora}/hora
+                {proyecto.tarifa_hora}/hora
               </p>
             </div>
           </div>
@@ -216,6 +221,12 @@ function ProyectoDetails({ proyecto, onClose }) {
                         Fecha
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Inicio
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Fin
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Horas
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -233,10 +244,16 @@ function ProyectoDetails({ proyecto, onClose }) {
                           {formatDate(hora.fecha)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatTime(hora.hora_inicio)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatTime(hora.hora_fin)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {formatHours(hora.duracion_minutos)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${hora.total?.toFixed(2) || '0.00'}
+                          {hora.total?.toFixed(2) || '0.00'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {hora.descripcion || '-'}

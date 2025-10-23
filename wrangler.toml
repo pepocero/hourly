@@ -5,9 +5,11 @@ compatibility_flags = ["nodejs_compat"]
 
 [env.production]
 name = "hourly-prod"
+vars = { JWT_SECRET = "hourly-super-secret-jwt-key-production-2024", ENVIRONMENT = "production" }
 
 [env.staging]
 name = "hourly-staging"
+vars = { JWT_SECRET = "hourly-super-secret-jwt-key-staging-2024", ENVIRONMENT = "staging" }
 
 [[d1_databases]]
 binding = "DB"
@@ -21,5 +23,5 @@ id = "your-kv-namespace-id"
 preview_id = "your-preview-kv-namespace-id"
 
 [vars]
-JWT_SECRET = "hourly-super-secret-jwt-key-production-2024"
-ENVIRONMENT = "production"
+JWT_SECRET = "hourly-super-secret-jwt-key-development-2024"
+ENVIRONMENT = "development"
