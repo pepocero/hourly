@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Calendar, Download, Euro, Clock, BarChart3 } from 'lucide-react';
+import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown } from 'lucide-react';
 import apiService from '../services/api';
+import pdfService from '../services/pdfService';
 
 function Informes() {
   const [tipoInforme, setTipoInforme] = useState('detallado');
@@ -81,13 +82,38 @@ function Informes() {
     loadDatos();
   };
 
-  const handleExportarPDF = async () => {
+  const handleExportarCSV = async () => {
     try {
       await apiService.exportarCSV(fechaInicio, fechaFin);
     } catch (error) {
-      console.error('Error exportando informe:', error);
-      alert('Error al exportar el informe');
+      console.error('Error exportando CSV:', error);
+      alert('Error al exportar el archivo CSV');
     }
+  };
+
+  const handleExportarPDF = () => {
+    if (horas.length === 0) {
+      alert('No hay datos para exportar');
+      return;
+    }
+
+    const title = 'Informe de Horas Trabajadas';
+    const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
+    
+    pdfService.generatePDF(
+      title,
+      subtitle,
+      fechaInicio,
+      fechaFin,
+      horas,
+      subtotalesPorProyecto,
+      {
+        totalHoras: totalGeneralHoras,
+        totalGanancias: totalGeneralGanancias,
+        totalRegistros: horas.length,
+        promedioMinutos: horas.length > 0 ? totalGeneralMinutos / horas.length : 0
+      }
+    );
   };
 
   const formatDate = (dateString) => {
@@ -163,12 +189,20 @@ function Informes() {
         
         <div className="flex space-x-2 sm:space-x-3">
           <button
-            onClick={handleExportarPDF}
+            onClick={handleExportarCSV}
             className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
           >
             <Download className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Exportar CSV</span>
             <span className="sm:hidden">CSV</span>
+          </button>
+          <button
+            onClick={handleExportarPDF}
+            className="btn-primary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
+          >
+            <FileDown className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Exportar PDF</span>
+            <span className="sm:hidden">PDF</span>
           </button>
         </div>
       </div>

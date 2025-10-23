@@ -992,10 +992,19 @@ export default {
           const { fecha_inicio, fecha_fin } = Object.fromEntries(url.searchParams);
           const horas = await db.getHoras(authResult.userId, fecha_inicio, fecha_fin);
 
-          // Crear CSV
-          let csv = 'Fecha,Proyecto,Inicio,Fin,Duracion (minutos),Descripcion,Tarifa Aplicada,Total\n';
+          // Crear CSV con separador de punto y coma para mejor compatibilidad con Excel
+          let csv = 'Fecha;Proyecto;Inicio;Fin;Duracion (minutos);Descripcion;Tarifa Aplicada;Total\n';
           horas.results.forEach(hora => {
-            csv += `${hora.fecha},"${hora.proyecto_nombre}",${hora.hora_inicio || '-'},${hora.hora_fin || '-'},${hora.duracion_minutos},"${hora.descripcion || ''}",${hora.tarifa_aplicada},${hora.total}\n`;
+            const fecha = hora.fecha || '';
+            const proyecto = (hora.proyecto_nombre || '').replace(/"/g, '""');
+            const inicio = hora.hora_inicio || '-';
+            const fin = hora.hora_fin || '-';
+            const duracion = hora.duracion_minutos || 0;
+            const descripcion = (hora.descripcion || '').replace(/"/g, '""');
+            const tarifa = hora.tarifa_aplicada || 0;
+            const total = hora.total || 0;
+            
+            csv += `${fecha};"${proyecto}";${inicio};${fin};${duracion};"${descripcion}";${tarifa};${total}\n`;
           });
 
           return new Response(csv, {
