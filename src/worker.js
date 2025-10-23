@@ -986,6 +986,42 @@ export default {
         }
       }
 
+      // GET /api/exportar/csv - Exportar horas a CSV
+      if (url.pathname === '/api/exportar/csv' && request.method === 'GET') {
+        try {
+          const { fecha_inicio, fecha_fin } = Object.fromEntries(url.searchParams);
+          const horas = await db.getHoras(authResult.userId, fecha_inicio, fecha_fin);
+
+          // Crear CSV
+          let csv = 'Fecha,Proyecto,Inicio,Fin,Duracion (minutos),Descripcion,Tarifa Aplicada,Total\n';
+          horas.results.forEach(hora => {
+            csv += `${hora.fecha},"${hora.proyecto_nombre}",${hora.hora_inicio || '-'},${hora.hora_fin || '-'},${hora.duracion_minutos},"${hora.descripcion || ''}",${hora.tarifa_aplicada},${hora.total}\n`;
+          });
+
+          return new Response(csv, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/csv',
+              'Content-Disposition': 'attachment; filename="horas_trabajadas.csv"',
+              ...corsHeaders
+            }
+          });
+        } catch (error) {
+          console.error('Error en /api/exportar/csv:', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error al exportar a CSV',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
       // Default response
       return new Response(JSON.stringify({ 
         success: false,
@@ -998,7 +1034,8 @@ export default {
           '/auth/logout',
           '/api/proyectos (GET, POST)',
           '/api/horas (GET, POST)',
-          '/api/horas/resumen (GET)'
+          '/api/horas/resumen (GET)',
+          '/api/exportar/csv (GET)'
         ]
       }), {
         status: 404,
