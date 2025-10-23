@@ -91,30 +91,6 @@ function Informes() {
     }
   };
 
-  const handleExportarPDF = () => {
-    if (horas.length === 0) {
-      alert('No hay datos para exportar');
-      return;
-    }
-
-    const title = 'Informe de Horas Trabajadas';
-    const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
-    
-    pdfService.generatePDF(
-      title,
-      subtitle,
-      fechaInicio,
-      fechaFin,
-      horas,
-      subtotalesPorProyecto,
-      {
-        totalHoras: totalGeneralHoras,
-        totalGanancias: totalGeneralGanancias,
-        totalRegistros: horas.length,
-        promedioMinutos: horas.length > 0 ? totalGeneralMinutos / horas.length : 0
-      }
-    );
-  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -177,6 +153,31 @@ function Informes() {
     { id: 'por_proyecto', label: 'Por Proyecto', icon: BarChart3, description: 'Resumen agrupado por proyecto' },
     { id: 'mensual', label: 'Mensual', icon: Calendar, description: 'Resumen mensual de horas trabajadas' }
   ];
+
+  const handleExportarPDF = () => {
+    if (horas.length === 0) {
+      alert('No hay datos para exportar');
+      return;
+    }
+
+    const title = 'Informe de Horas Trabajadas';
+    const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
+    
+    pdfService.generatePDF(
+      title,
+      subtitle,
+      fechaInicio,
+      fechaFin,
+      horas,
+      subtotalesPorProyecto,
+      {
+        totalHoras: totalGeneralHoras,
+        totalGanancias: totalGeneralGanancias,
+        totalRegistros: horas.length,
+        promedioMinutos: horas.length > 0 ? totalGeneralMinutos / horas.length : 0
+      }
+    );
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">

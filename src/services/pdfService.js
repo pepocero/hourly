@@ -1,6 +1,5 @@
 // Servicio para generar PDFs de informes
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 class PDFService {
   constructor() {
@@ -95,87 +94,102 @@ class PDFService {
     });
   }
 
-  // Agregar tabla de horas trabajadas
+  // Agregar tabla de horas trabajadas (versión simplificada sin autoTable)
   addHoursTable(horas, subtotalesPorProyecto) {
     if (!this.doc) return;
 
     const yStart = 160;
+    let currentY = yStart;
 
     // Título de la tabla
     this.doc.setFontSize(14);
     this.doc.setFont('helvetica', 'bold');
-    this.doc.text('Detalle de Horas Trabajadas', 20, yStart);
+    this.doc.text('Detalle de Horas Trabajadas', 20, currentY);
+    currentY += 15;
 
-    // Preparar datos para la tabla
-    const tableData = [];
-    let totalGeneral = 0;
+    // Encabezados de la tabla
+    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFillColor(59, 130, 246);
+    this.doc.rect(20, currentY - 5, 170, 8, 'F');
+    this.doc.setTextColor(255, 255, 255);
+    
+    const headers = ['Fecha', 'Proyecto', 'Inicio', 'Fin', 'Duración', 'Total'];
+    const colWidths = [25, 40, 20, 20, 25, 25];
+    let xPos = 20;
+    
+    headers.forEach((header, index) => {
+      this.doc.text(header, xPos + 2, currentY);
+      xPos += colWidths[index];
+    });
+    
+    currentY += 10;
+    this.doc.setTextColor(0, 0, 0);
 
+    // Datos de la tabla
+    this.doc.setFontSize(8);
+    this.doc.setFont('helvetica', 'normal');
+    
     Object.entries(subtotalesPorProyecto).forEach(([proyectoId, subtotal]) => {
       // Agregar filas del proyecto
       subtotal.registros.forEach(hora => {
-        tableData.push([
+        if (currentY > 250) { // Nueva página si es necesario
+          this.doc.addPage();
+          currentY = 20;
+        }
+
+        xPos = 20;
+        const rowData = [
           this.formatDate(hora.fecha),
-          hora.proyecto_nombre,
+          hora.proyecto_nombre.substring(0, 15) + (hora.proyecto_nombre.length > 15 ? '...' : ''),
           this.formatTime(hora.hora_inicio),
           this.formatTime(hora.hora_fin),
           this.formatDuration(hora.duracion_minutos),
-          hora.descripcion || '-',
-          `€${parseFloat(hora.tarifa_aplicada || 0).toFixed(2)}`,
           `€${parseFloat(hora.total || 0).toFixed(2)}`
-        ]);
+        ];
+
+        rowData.forEach((data, index) => {
+          this.doc.text(data, xPos + 2, currentY);
+          xPos += colWidths[index];
+        });
+
+        currentY += 6;
       });
 
       // Agregar subtotal del proyecto
-      tableData.push([
-        '', '', '', '', '', '',
-        `Subtotal ${subtotal.nombre}:`,
-        `€${subtotal.totalGanancias.toFixed(2)}`
-      ]);
-
-      totalGeneral += subtotal.totalGanancias;
-    });
-
-    // Agregar total general
-    tableData.push([
-      '', '', '', '', '', '',
-      'TOTAL GENERAL:',
-      `€${totalGeneral.toFixed(2)}`
-    ]);
-
-    // Generar tabla
-    this.doc.autoTable({
-      startY: yStart + 10,
-      head: [['Fecha', 'Proyecto', 'Inicio', 'Fin', 'Duración', 'Descripción', 'Tarifa', 'Total']],
-      body: tableData,
-      styles: {
-        fontSize: 8,
-        cellPadding: 2,
-      },
-      headStyles: {
-        fillColor: [59, 130, 246],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252],
-      },
-      columnStyles: {
-        0: { halign: 'center' }, // Fecha
-        1: { halign: 'left' },   // Proyecto
-        2: { halign: 'center' }, // Inicio
-        3: { halign: 'center' }, // Fin
-        4: { halign: 'center' }, // Duración
-        5: { halign: 'left' },   // Descripción
-        6: { halign: 'right' },  // Tarifa
-        7: { halign: 'right' },  // Total
-      },
-      didDrawPage: (data) => {
-        // Agregar número de página
-        const pageCount = this.doc.getNumberOfPages();
-        this.doc.setFontSize(8);
-        this.doc.text(`Página ${data.pageNumber} de ${pageCount}`, 20, this.doc.internal.pageSize.height - 10);
+      if (currentY > 250) {
+        this.doc.addPage();
+        currentY = 20;
       }
+
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFillColor(240, 240, 240);
+      this.doc.rect(20, currentY - 3, 170, 6, 'F');
+      
+      this.doc.text(`Subtotal ${subtotal.nombre}:`, 25, currentY);
+      this.doc.text(`€${subtotal.totalGanancias.toFixed(2)}`, 165, currentY);
+      
+      currentY += 10;
+      this.doc.setFont('helvetica', 'normal');
     });
+
+    // Total general
+    if (currentY > 250) {
+      this.doc.addPage();
+      currentY = 20;
+    }
+
+    const totalGeneral = Object.values(subtotalesPorProyecto).reduce((sum, subtotal) => sum + subtotal.totalGanancias, 0);
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFillColor(34, 197, 94);
+    this.doc.rect(20, currentY - 3, 170, 8, 'F');
+    this.doc.setTextColor(255, 255, 255);
+    
+    this.doc.text('TOTAL GENERAL:', 25, currentY);
+    this.doc.text(`€${totalGeneral.toFixed(2)}`, 165, currentY);
+    
+    this.doc.setTextColor(0, 0, 0);
   }
 
   // Agregar pie de página
