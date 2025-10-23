@@ -11,6 +11,10 @@ binding = "DB"
 database_name = "hourly-db"
 database_id = "f990215e-de16-48e3-ad1a-5a1c9592683e"
 migrations_dir = "migrations"
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
 
 [env.staging]
 name = "hourly-staging"
@@ -20,6 +24,10 @@ binding = "DB"
 database_name = "hourly-db"
 database_id = "f990215e-de16-48e3-ad1a-5a1c9592683e"
 migrations_dir = "migrations"
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
 
 [[d1_databases]]
 binding = "DB"
