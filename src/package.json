@@ -1,0 +1,14 @@
+{
+  "name": "hourly-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker para la aplicación Hourly",
+  "main": "worker.js",
+  "dependencies": {
+    "itty-router": "^4.0.23",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0"
+  }
+}
