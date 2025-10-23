@@ -148,15 +148,15 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
   return (
     <div className="card">
       {/* Filtro por proyecto */}
-      <div className="mb-4">
-        <label htmlFor="proyecto-filtro" className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="mb-3 sm:mb-4">
+        <label htmlFor="proyecto-filtro" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
           Filtrar por proyecto
         </label>
         <select
           id="proyecto-filtro"
           value={proyectoFiltro}
           onChange={(e) => setProyectoFiltro(e.target.value)}
-          className="input-field max-w-xs"
+          className="input-field w-full sm:max-w-xs text-sm sm:text-base"
         >
           <option value="">Todos los proyectos</option>
           {proyectos.map((proyecto) => (
@@ -167,7 +167,64 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
         </select>
       </div>
       
-      <div className="overflow-x-auto">
+      {/* Vista móvil - Tarjetas */}
+      <div className="block sm:hidden space-y-3">
+        {horas.map((hora) => (
+          <div key={hora.id} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center">
+                <div
+                  className="w-3 h-3 rounded-full mr-2"
+                  style={{ backgroundColor: hora.proyecto_color }}
+                ></div>
+                <span className="text-sm font-medium text-gray-900">{hora.proyecto_nombre}</span>
+              </div>
+              <div className="flex space-x-1">
+                <button
+                  onClick={() => onEdit(hora)}
+                  className="text-primary-600 hover:text-primary-900 p-1"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteClick(hora)}
+                  className="text-red-600 hover:text-red-900 p-1"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+              <div>
+                <span className="font-medium">Fecha:</span> {formatDate(hora.fecha)}
+              </div>
+              <div>
+                <span className="font-medium">Duración:</span> {formatDuration(hora.duracion_minutos)}
+              </div>
+              <div>
+                <span className="font-medium">Inicio:</span> {formatTime(hora.hora_inicio)}
+              </div>
+              <div>
+                <span className="font-medium">Fin:</span> {formatTime(hora.hora_fin)}
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <span className="text-xs text-gray-500">
+                {hora.descripcion || 'Sin descripción'}
+              </span>
+              <div className="flex items-center text-sm font-semibold text-green-600">
+                <Euro className="h-3 w-3 mr-1" />
+                {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Vista desktop - Tabla */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

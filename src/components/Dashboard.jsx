@@ -101,35 +101,36 @@ function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Gestiona tus horas de trabajo y proyectos</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600">Gestiona tus horas de trabajo y proyectos</p>
         </div>
         
-        <div className="flex space-x-3">
+        <div className="flex space-x-2 sm:space-x-3">
           <button
             onClick={handleExportarCSV}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
           >
-            <Download className="h-4 w-4" />
-            <span>Exportar CSV</span>
+            <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Exportar CSV</span>
+            <span className="sm:hidden">CSV</span>
           </button>
         </div>
       </div>
 
       {/* Resumen de horas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         <div className="card">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Clock className="h-6 w-6 text-blue-600" />
+            <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-blue-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Horas</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="ml-2 sm:ml-3 lg:ml-4">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Total Horas</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
                 {loading ? '...' : (resumen?.totalHoras || 0).toFixed(1)}
               </p>
             </div>
@@ -138,12 +139,12 @@ function Dashboard() {
 
         <div className="card">
           <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Euro className="h-6 w-6 text-green-600" />
+            <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
+              <Euro className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Ganancias</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="ml-2 sm:ml-3 lg:ml-4">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Total Ganancias</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
                 {loading ? '...' : (resumen?.totalGanancias || 0).toFixed(2)}
               </p>
             </div>
@@ -152,12 +153,12 @@ function Dashboard() {
 
         <div className="card">
           <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-purple-600" />
+            <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-purple-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Registros</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="ml-2 sm:ml-3 lg:ml-4">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Registros</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
                 {loading ? '...' : resumen?.totalRegistros || 0}
               </p>
             </div>
@@ -166,12 +167,12 @@ function Dashboard() {
 
         <div className="card">
           <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Clock className="h-6 w-6 text-orange-600" />
+            <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-orange-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Promedio/Día</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="ml-2 sm:ml-3 lg:ml-4">
+              <p className="text-xs sm:text-sm font-medium text-gray-600">Promedio/Día</p>
+              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
                 {loading ? '...' : (resumen?.promedioMinutos || 0).toFixed(0)}m
               </p>
             </div>
@@ -181,29 +182,32 @@ function Dashboard() {
 
       {/* Filtros de fecha */}
       <div className="card">
-        <div className="flex items-center space-x-4">
-          <Filter className="h-5 w-5 text-gray-500" />
-          <div className="flex space-x-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+          <div className="flex items-center space-x-2">
+            <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Filtros:</span>
+          </div>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className="flex-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                 Fecha inicio
               </label>
               <input
                 type="date"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
-                className="input-field"
+                className="input-field w-full"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="flex-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                 Fecha fin
               </label>
               <input
                 type="date"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
-                className="input-field"
+                className="input-field w-full"
               />
             </div>
           </div>
@@ -212,21 +216,22 @@ function Dashboard() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-4 sm:space-x-8">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`flex items-center space-x-1 sm:space-x-2 py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${
                   activeTab === tab.id
                     ? 'border-primary-500 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
+                <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.id === 'horas' ? 'Horas' : 'Proyectos'}</span>
               </button>
             );
           })}
@@ -234,19 +239,19 @@ function Dashboard() {
       </div>
 
       {/* Content */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {activeTab === 'horas' && (
           <>
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Horas Trabajadas</h2>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Horas Trabajadas</h2>
               <button
                 onClick={() => {
                   setEditingHora(null);
                   setShowHorasForm(true);
                 }}
-                className="btn-primary flex items-center space-x-2"
+                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Nueva Hora</span>
               </button>
             </div>
@@ -262,16 +267,16 @@ function Dashboard() {
 
         {activeTab === 'proyectos' && (
           <>
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Proyectos</h2>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Proyectos</h2>
               <button
                 onClick={() => {
                   setEditingProyecto(null);
                   setShowProyectoForm(true);
                 }}
-                className="btn-primary flex items-center space-x-2"
+                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Nuevo Proyecto</span>
               </button>
             </div>

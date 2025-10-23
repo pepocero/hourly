@@ -56,12 +56,97 @@ export default {
         }
       }
 
+      // Test endpoint for debugging
+      if (url.pathname === '/test' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          return new Response(JSON.stringify({ 
+            success: true,
+            message: 'Test endpoint working',
+            receivedData: body,
+            timestamp: new Date().toISOString()
+          }), {
+            status: 200,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error in test endpoint',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // Test endpoint without JSON parsing
+      if (url.pathname === '/test-simple' && request.method === 'POST') {
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: 'Test endpoint working without JSON parsing',
+          timestamp: new Date().toISOString()
+        }), {
+          status: 200,
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
+      // Simple test endpoint
+      if (url.pathname === '/simple-test') {
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: 'Simple test working',
+          timestamp: new Date().toISOString()
+        }), {
+          status: 200,
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+
       // Auth endpoints
       if (url.pathname === '/auth/register' && request.method === 'POST') {
         try {
-          const { email, password, name } = await request.json();
+          console.log('Starting registration process...');
+          
+          // Parse JSON with error handling
+          let requestData;
+          try {
+            requestData = await request.json();
+            console.log('JSON parsed successfully');
+          } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Error al procesar los datos',
+              details: parseError.message
+            }), {
+              status: 400,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          const { email, password, name } = requestData;
+          console.log('Received data:', { email, name, passwordLength: password?.length });
 
           if (!email || !password || !name) {
+            console.log('Missing required fields');
             return new Response(JSON.stringify({ 
               success: false,
               error: 'Email, contraseña y nombre son requeridos'
@@ -75,6 +160,7 @@ export default {
           }
 
           if (password.length < 6) {
+            console.log('Password too short');
             return new Response(JSON.stringify({ 
               success: false,
               error: 'La contraseña debe tener al menos 6 caracteres'
@@ -88,8 +174,10 @@ export default {
           }
 
           // Verificar si el usuario ya existe
+          console.log('Checking if user exists...');
           const existingUser = await db.getUserByEmail(email);
           if (existingUser) {
+            console.log('User already exists');
             return new Response(JSON.stringify({ 
               success: false,
               error: 'El email ya está registrado'
@@ -103,12 +191,17 @@ export default {
           }
 
           // Crear hash de la contraseña
+          console.log('Creating password hash...');
           const passwordHash = await authService.hashPassword(password);
+          console.log('Password hash created');
           
           // Crear usuario en la base de datos
+          console.log('Creating user in database...');
           const result = await db.createUser(email, passwordHash, name);
+          console.log('User creation result:', result);
           
           if (!result.success) {
+            console.log('User creation failed');
             return new Response(JSON.stringify({ 
               success: false,
               error: 'Error al crear el usuario'
@@ -122,8 +215,11 @@ export default {
           }
 
           // Generar token JWT
+          console.log('Generating JWT token...');
           const token = await authService.generateToken(result.meta.last_row_id, email);
+          console.log('JWT token generated');
           
+          console.log('Registration completed successfully');
           return new Response(JSON.stringify({
             success: true,
             message: 'Usuario registrado exitosamente',
@@ -145,10 +241,12 @@ export default {
 
         } catch (error) {
           console.error('Error en /auth/register:', error);
+          console.error('Error stack:', error.stack);
           return new Response(JSON.stringify({ 
             success: false,
             error: 'Error interno del servidor',
-            details: error.message
+            details: error.message,
+            stack: error.stack
           }), {
             status: 500,
             headers: { 

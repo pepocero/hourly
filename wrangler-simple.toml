@@ -1,0 +1,11 @@
+name = "hourly-simple"
+main = "src/worker-simple.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production]
+name = "hourly-simple-prod"
+
+[vars]
+JWT_SECRET = "hourly-super-secret-jwt-key-production-2024"
+ENVIRONMENT = "production"

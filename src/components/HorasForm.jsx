@@ -161,26 +161,26 @@ function HorasForm({ hora, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-3 sm:p-4 sm:p-6 border-b border-gray-200">
           <div className="flex items-center space-x-2">
-            <Clock className="h-5 w-5 text-primary-600" />
-            <h2 className="text-lg font-semibold text-gray-900">
+            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">
               {hora ? 'Editar Hora' : 'Nueva Hora Trabajada'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 p-1"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4 sm:p-6 space-y-3 sm:space-y-4">
           {/* Error message */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -227,7 +227,7 @@ function HorasForm({ hora, onClose, onSave }) {
           </div>
 
           {/* Horario */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label htmlFor="hora_inicio" className="form-label">
                 Hora de inicio *
@@ -239,7 +239,7 @@ function HorasForm({ hora, onClose, onSave }) {
                 required
                 value={formData.hora_inicio}
                 onChange={handleChange}
-                className="input-field"
+                className="input-field w-full"
               />
             </div>
             <div>
@@ -253,13 +253,13 @@ function HorasForm({ hora, onClose, onSave }) {
                 required
                 value={formData.hora_fin}
                 onChange={handleChange}
-                className="input-field"
+                className="input-field w-full"
               />
             </div>
           </div>
 
           {/* Tarifa y Total */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label htmlFor="tarifa_aplicada" className="form-label">
                 Tarifa/hora
@@ -271,7 +271,7 @@ function HorasForm({ hora, onClose, onSave }) {
                 name="tarifa_aplicada"
                 value={formData.tarifa_aplicada}
                 onChange={handleChange}
-                className="input-field"
+                className="input-field w-full"
                 placeholder="0.00"
                 readOnly={formData.proyecto_id ? true : false}
               />
@@ -292,7 +292,7 @@ function HorasForm({ hora, onClose, onSave }) {
                 name="total"
                 value={formData.total}
                 onChange={handleChange}
-                className="input-field bg-gray-50"
+                className="input-field bg-gray-50 w-full"
                 placeholder="0.00"
                 readOnly
               />
@@ -319,18 +319,18 @@ function HorasForm({ hora, onClose, onSave }) {
           </div>
 
           {/* Buttons */}
-          <div className="flex space-x-3 pt-4">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-3 sm:pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="btn-secondary flex-1"
+              className="btn-secondary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary flex-1"
+              className="btn-primary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
             >
               {loading ? 'Guardando...' : 'Guardar'}
             </button>
