@@ -27,9 +27,9 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white/90 backdrop-blur-sm border-b border-orange-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-2">
@@ -38,20 +38,20 @@ const LandingPage = () => {
                 alt="Hourly Logo" 
                 className="w-8 h-8" 
               />
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-700 bg-clip-text text-transparent">
                 Hourly
               </span>
             </div>
             <div className="flex items-center space-x-4">
               <Link
                 to="/login"
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                className="text-orange-700 hover:text-orange-800 font-medium transition-colors"
               >
                 Iniciar Sesión
               </Link>
               <Link
                 to="/register"
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                className="gradient-orange text-white px-6 py-2 rounded-lg font-medium hover:shadow-xl transition-all duration-200 shadow-lg"
               >
                 Comenzar Gratis
               </Link>
@@ -61,29 +61,35 @@ const LandingPage = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+      <section className="pt-20 pb-16 px-4 sm:px-6 lg:px-8 hero-gradient relative overflow-hidden">
+        {/* Elementos decorativos de fondo */}
+        <div className="absolute inset-0 bg-gradient-to-r from-orange-200/20 to-orange-300/20"></div>
+        <div className="absolute top-10 left-10 w-32 h-32 bg-orange-300/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-10 right-10 w-40 h-40 bg-orange-400/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-60 h-60 bg-orange-200/5 rounded-full blur-3xl"></div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center">
-            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 drop-shadow-sm">
               Controla tus{' '}
-              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-orange-600 to-orange-700 bg-clip-text text-transparent drop-shadow-md">
                 horas de trabajo
               </span>
             </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            <p className="text-xl text-gray-700 mb-8 max-w-3xl mx-auto font-medium drop-shadow-sm">
               La herramienta perfecta para freelancers y profesionales independientes. 
               Registra, organiza y analiza tus horas de trabajo de manera simple y eficiente.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/register"
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                className="gradient-orange text-white px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-200 shadow-lg transform hover:-translate-y-1 border-2 border-orange-500 hover:border-orange-600"
               >
                 Comenzar Gratis
               </Link>
               <Link
                 to="/login"
-                className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg hover:border-gray-400 hover:bg-gray-50 transition-all duration-200"
+                className="border-2 border-orange-400 text-orange-800 px-8 py-4 rounded-xl font-semibold text-lg hover:border-orange-500 hover:bg-orange-100 transition-all duration-200 bg-white/80 backdrop-blur-sm shadow-md hover:shadow-lg"
               >
                 Ya tengo cuenta
               </Link>
@@ -93,11 +99,14 @@ const LandingPage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-white/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Todo lo que necesitas para gestionar tu tiempo
+              Todo lo que necesitas para{' '}
+              <span className="bg-gradient-to-r from-orange-600 to-orange-700 bg-clip-text text-transparent">
+                gestionar tu tiempo
+              </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Herramientas profesionales diseñadas específicamente para freelancers y trabajadores independientes.
@@ -106,8 +115,8 @@ const LandingPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-2xl border border-blue-100 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-6">
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-8 rounded-2xl border border-orange-200 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center mb-6">
                 <Clock className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
@@ -120,8 +129,8 @@ const LandingPage = () => {
             </div>
 
             {/* Feature 2 */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-8 rounded-2xl border border-green-100 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center mb-6">
+            <div className="bg-gradient-to-br from-orange-100 to-orange-200 p-8 rounded-2xl border border-orange-300 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-orange-700 rounded-xl flex items-center justify-center mb-6">
                 <BarChart3 className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
@@ -134,8 +143,8 @@ const LandingPage = () => {
             </div>
 
             {/* Feature 3 */}
-            <div className="bg-gradient-to-br from-purple-50 to-violet-50 p-8 rounded-2xl border border-purple-100 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center mb-6">
+            <div className="bg-gradient-to-br from-orange-200 to-orange-300 p-8 rounded-2xl border border-orange-400 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-orange-800 rounded-xl flex items-center justify-center mb-6">
                 <Users className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
@@ -148,7 +157,7 @@ const LandingPage = () => {
             </div>
 
             {/* Feature 4 */}
-            <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-8 rounded-2xl border border-orange-100 hover:shadow-lg transition-all duration-300">
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-8 rounded-2xl border border-orange-200 hover:shadow-lg transition-all duration-300">
               <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center mb-6">
                 <Shield className="w-6 h-6 text-white" />
               </div>
@@ -162,8 +171,8 @@ const LandingPage = () => {
             </div>
 
             {/* Feature 5 */}
-            <div className="bg-gradient-to-br from-red-50 to-pink-50 p-8 rounded-2xl border border-red-100 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center mb-6">
+            <div className="bg-gradient-to-br from-orange-100 to-orange-200 p-8 rounded-2xl border border-orange-300 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-orange-700 rounded-xl flex items-center justify-center mb-6">
                 <Zap className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
@@ -176,8 +185,8 @@ const LandingPage = () => {
             </div>
 
             {/* Feature 6 */}
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-8 rounded-2xl border border-indigo-100 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mb-6">
+            <div className="bg-gradient-to-br from-orange-200 to-orange-300 p-8 rounded-2xl border border-orange-400 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-orange-800 rounded-xl flex items-center justify-center mb-6">
                 <Star className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
@@ -193,13 +202,13 @@ const LandingPage = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-indigo-600">
+      <section className="py-20 gradient-orange">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center text-white mb-16">
             <h2 className="text-4xl font-bold mb-4">
               Únete a miles de profesionales
             </h2>
-            <p className="text-xl text-blue-100">
+            <p className="text-xl text-orange-100">
               La herramienta de gestión de tiempo más confiable para freelancers
             </p>
           </div>
@@ -207,22 +216,22 @@ const LandingPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center text-white">
             <div>
               <div className="text-4xl font-bold mb-2">10,000+</div>
-              <div className="text-blue-100">Horas registradas</div>
+              <div className="text-orange-100">Horas registradas</div>
             </div>
             <div>
               <div className="text-4xl font-bold mb-2">500+</div>
-              <div className="text-blue-100">Proyectos completados</div>
+              <div className="text-orange-100">Proyectos completados</div>
             </div>
             <div>
               <div className="text-4xl font-bold mb-2">99.9%</div>
-              <div className="text-blue-100">Tiempo de actividad</div>
+              <div className="text-orange-100">Tiempo de actividad</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-orange-50">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
             ¿Listo para optimizar tu productividad?
@@ -233,7 +242,7 @@ const LandingPage = () => {
           </p>
           <Link
             to="/register"
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1 inline-block"
+            className="gradient-orange text-white px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-xl transition-all duration-200 shadow-lg transform hover:-translate-y-1 inline-block"
           >
             Comenzar Gratis Ahora
           </Link>
@@ -241,7 +250,7 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
+      <footer className="bg-orange-900 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
@@ -252,7 +261,7 @@ const LandingPage = () => {
               />
               <span className="text-xl font-bold">Hourly</span>
             </div>
-            <div className="text-gray-400">
+            <div className="text-orange-200">
               © 2024 Hourly. Todos los derechos reservados.
             </div>
           </div>
