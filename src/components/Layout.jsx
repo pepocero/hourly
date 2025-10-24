@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Clock, User, LogOut } from 'lucide-react';
 
@@ -16,14 +17,14 @@ function Layout({ children }) {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo */}
-            <div className="flex items-center">
+            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity">
               <img 
                 src="/letraht.png" 
                 alt="Hourly Logo" 
                 className="h-6 w-6 sm:h-8 sm:w-8 mr-1 sm:mr-2" 
               />
               <h1 className="text-lg sm:text-xl font-bold text-gray-900">Hourly</h1>
-            </div>
+            </Link>
 
             {/* User menu */}
             <div className="flex items-center space-x-2 sm:space-x-4">
