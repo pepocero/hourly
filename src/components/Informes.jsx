@@ -14,13 +14,14 @@ function Informes() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Establecer fechas por defecto (último mes)
+  // Establecer fechas por defecto (mes actual)
   useEffect(() => {
     const today = new Date();
-    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     
-    setFechaFin(today.toISOString().split('T')[0]);
-    setFechaInicio(lastMonth.toISOString().split('T')[0]);
+    setFechaInicio(firstDayOfMonth.toISOString().split('T')[0]);
+    setFechaFin(lastDayOfMonth.toISOString().split('T')[0]);
   }, []);
 
   useEffect(() => {
