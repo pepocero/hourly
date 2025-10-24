@@ -1,7 +1,8 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Edit, Trash2, Clock, Euro } from 'lucide-react';
+import { Edit, Trash2, Clock, Euro, Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import HoraDetailsModal from './HoraDetailsModal';
 
 const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, ref) => {
   const [horas, setHoras] = useState([]);
@@ -9,8 +10,12 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
   const [error, setError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [horaToDelete, setHoraToDelete] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [horaToView, setHoraToView] = useState(null);
   const [proyectos, setProyectos] = useState([]);
   const [proyectoFiltro, setProyectoFiltro] = useState('');
+  const [sortField, setSortField] = useState('fecha');
+  const [sortDirection, setSortDirection] = useState('asc');
 
   useEffect(() => {
     loadProyectos();
@@ -18,7 +23,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
 
   useEffect(() => {
     loadHoras();
-  }, [fechaInicio, fechaFin, proyectoFiltro]);
+  }, [fechaInicio, fechaFin, proyectoFiltro, sortField, sortDirection]);
 
   useImperativeHandle(ref, () => ({
     loadHoras
@@ -49,6 +54,9 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
           );
         }
         
+        // Aplicar ordenamiento
+        horasFiltradas = sortHoras(horasFiltradas, sortField, sortDirection);
+        
         setHoras(horasFiltradas);
       }
     } catch (error) {
@@ -57,6 +65,61 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
     } finally {
       setLoading(false);
     }
+  };
+
+  const sortHoras = (horasData, field, direction) => {
+    return [...horasData].sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (field) {
+        case 'fecha':
+          aValue = new Date(a.fecha);
+          bValue = new Date(b.fecha);
+          break;
+        case 'proyecto_nombre':
+          aValue = a.proyecto_nombre?.toLowerCase() || '';
+          bValue = b.proyecto_nombre?.toLowerCase() || '';
+          break;
+        case 'duracion_minutos':
+          aValue = a.duracion_minutos || 0;
+          bValue = b.duracion_minutos || 0;
+          break;
+        case 'total':
+          aValue = parseFloat(a.total) || 0;
+          bValue = parseFloat(b.total) || 0;
+          break;
+        case 'descripcion':
+          aValue = a.descripcion?.toLowerCase() || '';
+          bValue = b.descripcion?.toLowerCase() || '';
+          break;
+        default:
+          return 0;
+      }
+      
+      if (direction === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) {
+      return <ChevronUp className="h-4 w-4 text-gray-300" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ChevronUp className="h-4 w-4 text-primary-600" />
+      : <ChevronDown className="h-4 w-4 text-primary-600" />;
   };
 
   const handleDeleteClick = (hora) => {
@@ -86,6 +149,16 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
   const handleDeleteCancel = () => {
     setShowDeleteModal(false);
     setHoraToDelete(null);
+  };
+
+  const handleViewClick = (hora) => {
+    setHoraToView(hora);
+    setShowDetailsModal(true);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setHoraToView(null);
   };
 
   const formatTime = (time) => {
@@ -181,14 +254,23 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
               </div>
               <div className="flex space-x-1">
                 <button
+                  onClick={() => handleViewClick(hora)}
+                  className="text-blue-600 hover:text-blue-900 p-1"
+                  title="Ver detalles"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+                <button
                   onClick={() => onEdit(hora)}
                   className="text-primary-600 hover:text-primary-900 p-1"
+                  title="Editar"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => handleDeleteClick(hora)}
                   className="text-red-600 hover:text-red-900 p-1"
+                  title="Eliminar"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -202,18 +284,12 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
               <div>
                 <span className="font-medium">Duración:</span> {formatDuration(hora.duracion_minutos)}
               </div>
-              <div>
-                <span className="font-medium">Inicio:</span> {formatTime(hora.hora_inicio)}
-              </div>
-              <div>
-                <span className="font-medium">Fin:</span> {formatTime(hora.hora_fin)}
+              <div className="col-span-2">
+                <span className="font-medium">Observaciones:</span> {hora.descripcion || 'Sin observaciones'}
               </div>
             </div>
             
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-              <span className="text-xs text-gray-500">
-                {hora.descripcion || 'Sin descripción'}
-              </span>
+            <div className="flex items-center justify-end pt-2 border-t border-gray-100">
               <div className="flex items-center text-sm font-semibold text-green-600">
                 <Euro className="h-3 w-3 mr-1" />
                 {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'}
@@ -229,22 +305,49 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Fecha
+                <button
+                  onClick={() => handleSort('fecha')}
+                  className="flex items-center space-x-1 hover:text-gray-700 focus:outline-none"
+                >
+                  <span>Fecha</span>
+                  {getSortIcon('fecha')}
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Proyecto
+                <button
+                  onClick={() => handleSort('proyecto_nombre')}
+                  className="flex items-center space-x-1 hover:text-gray-700 focus:outline-none"
+                >
+                  <span>Proyecto</span>
+                  {getSortIcon('proyecto_nombre')}
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Inicio
+                <button
+                  onClick={() => handleSort('descripcion')}
+                  className="flex items-center space-x-1 hover:text-gray-700 focus:outline-none"
+                >
+                  <span>Observaciones</span>
+                  {getSortIcon('descripcion')}
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Fin
+                <button
+                  onClick={() => handleSort('duracion_minutos')}
+                  className="flex items-center space-x-1 hover:text-gray-700 focus:outline-none"
+                >
+                  <span>Duración</span>
+                  {getSortIcon('duracion_minutos')}
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Duración
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
+                <button
+                  onClick={() => handleSort('total')}
+                  className="flex items-center space-x-1 hover:text-gray-700 focus:outline-none"
+                >
+                  <span>Total</span>
+                  {getSortIcon('total')}
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Acciones
@@ -266,11 +369,10 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
                     <span className="text-sm text-gray-900">{hora.proyecto_nombre}</span>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatTime(hora.hora_inicio)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatTime(hora.hora_fin)}
+                <td className="px-6 py-4 text-sm text-gray-900">
+                  <div className="max-w-xs truncate" title={hora.descripcion || 'Sin observaciones'}>
+                    {hora.descripcion || 'Sin observaciones'}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatDuration(hora.duracion_minutos)}
@@ -284,14 +386,23 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
                     <button
+                      onClick={() => handleViewClick(hora)}
+                      className="text-blue-600 hover:text-blue-900"
+                      title="Ver detalles"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => onEdit(hora)}
                       className="text-primary-600 hover:text-primary-900"
+                      title="Editar"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteClick(hora)}
                       className="text-red-600 hover:text-red-900"
+                      title="Eliminar"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -313,6 +424,13 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
         confirmText="Eliminar"
         cancelText="Cancelar"
         type="danger"
+      />
+
+      {/* Modal de detalles */}
+      <HoraDetailsModal
+        isOpen={showDetailsModal}
+        onClose={handleCloseDetailsModal}
+        hora={horaToView}
       />
     </div>
   );
