@@ -49,7 +49,11 @@ function Register() {
         <div className="text-center">
           <Link to="/" className="inline-block mb-4">
             <div className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors">
-              <Clock className="h-8 w-8 text-primary-600" />
+              <img 
+                src="/letraht.png" 
+                alt="Hourly Logo" 
+                className="h-8 w-8" 
+              />
               <span className="text-xl font-bold">Hourly</span>
             </div>
           </Link>

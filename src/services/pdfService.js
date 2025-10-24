@@ -19,7 +19,7 @@ class PDFService {
     // Logo/Icono (usando texto por ahora)
     this.doc.setFontSize(20);
     this.doc.setFont('helvetica', 'bold');
-    this.doc.text('⏰ Hourly', 20, 30);
+    this.doc.text('Hourly', 20, 30);
     
     // Título principal
     this.doc.setFontSize(16);

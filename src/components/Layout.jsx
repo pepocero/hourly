@@ -17,7 +17,11 @@ function Layout({ children }) {
           <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-primary-600 mr-1 sm:mr-2" />
+              <img 
+                src="/letraht.png" 
+                alt="Hourly Logo" 
+                className="h-6 w-6 sm:h-8 sm:w-8 mr-1 sm:mr-2" 
+              />
               <h1 className="text-lg sm:text-xl font-bold text-gray-900">Hourly</h1>
             </div>
 
