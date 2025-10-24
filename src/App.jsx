@@ -10,7 +10,7 @@ import Layout from './components/Layout';
 // Componente para rutas protegidas
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  return isAuthenticated ? children : <Navigate to="/" />;
 }
 
 // Componente para rutas públicas (solo para usuarios no autenticados)
