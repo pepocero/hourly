@@ -315,9 +315,9 @@ function HorasForm({ hora, onClose, onSave }) {
                   name="tarifa_aplicada"
                   value={formData.tarifa_aplicada}
                   onChange={handleChange}
-                  className="input-field flex-1 min-w-[120px]"
+                  className="input-field flex-1 min-w-[120px] bg-gray-50"
                   placeholder="0.00"
-                  readOnly={formData.proyecto_id ? true : false}
+                  readOnly={true}
                 />
                 {hora && formData.proyecto_id && (
                   <button
@@ -325,15 +325,20 @@ function HorasForm({ hora, onClose, onSave }) {
                     onClick={() => updateTarifaActual()}
                     onTouchStart={() => updateTarifaActual()}
                     className="btn-secondary px-3 py-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-                    title="Actualizar con el precio actual del proyecto"
+                    title="Actualizar el total con la tarifa actual del proyecto"
                   >
                     Actualizar precio
                   </button>
                 )}
               </div>
-              {formData.proyecto_id && (
+              {hora && formData.proyecto_id && (
                 <p className="text-xs text-gray-500 mt-1">
-                  {hora ? 'Tarifa guardada (puedes actualizar con el botón)' : 'Tarifa del proyecto seleccionado'}
+                  La tarifa/hora se modifica en la edición del proyecto. Usa el botón para actualizar el total con el precio actual.
+                </p>
+              )}
+              {!hora && formData.proyecto_id && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Tarifa del proyecto seleccionado
                 </p>
               )}
             </div>
