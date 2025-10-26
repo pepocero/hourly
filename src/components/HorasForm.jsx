@@ -55,6 +55,49 @@ function HorasForm({ hora, onClose, onSave }) {
     }
   };
 
+  const updateTarifaActual = async () => {
+    if (!formData.proyecto_id) return;
+    
+    try {
+      // Recargar proyectos para obtener la tarifa actualizada
+      const response = await apiService.getProyectos();
+      if (response.success && response.data) {
+        const proyectoSeleccionado = response.data.find(p => p.id === parseInt(formData.proyecto_id));
+        if (proyectoSeleccionado) {
+          const tarifa = parseFloat(proyectoSeleccionado.tarifa_hora) || 0;
+          setFormData(prev => ({
+            ...prev,
+            tarifa_aplicada: tarifa.toFixed(2)
+          }));
+          
+          // Recalcular el total con la nueva tarifa
+          if (formData.hora_inicio && formData.hora_fin) {
+            const [inicioHora, inicioMin] = formData.hora_inicio.split(':').map(Number);
+            const [finHora, finMin] = formData.hora_fin.split(':').map(Number);
+            
+            const inicioMinutos = inicioHora * 60 + inicioMin;
+            const finMinutos = finHora * 60 + finMin;
+            
+            let diferenciaMinutos = finMinutos - inicioMinutos;
+            if (diferenciaMinutos < 0) {
+              diferenciaMinutos += 24 * 60;
+            }
+            
+            const cantidadHoras = diferenciaMinutos / 60;
+            const total = cantidadHoras * tarifa;
+            
+            setFormData(prev => ({
+              ...prev,
+              total: total.toFixed(2)
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error al actualizar tarifa:', error);
+    }
+  };
+
   const calculateTotal = (fieldName, value) => {
     // Si se selecciona un proyecto, usar su tarifa
     if (fieldName === 'proyecto_id' && value) {
@@ -264,20 +307,33 @@ function HorasForm({ hora, onClose, onSave }) {
               <label htmlFor="tarifa_aplicada" className="form-label">
                 Tarifa/hora
               </label>
-              <input
-                type="number"
-                step="0.01"
-                id="tarifa_aplicada"
-                name="tarifa_aplicada"
-                value={formData.tarifa_aplicada}
-                onChange={handleChange}
-                className="input-field w-full"
-                placeholder="0.00"
-                readOnly={formData.proyecto_id ? true : false}
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  id="tarifa_aplicada"
+                  name="tarifa_aplicada"
+                  value={formData.tarifa_aplicada}
+                  onChange={handleChange}
+                  className="input-field flex-1 min-w-[120px]"
+                  placeholder="0.00"
+                  readOnly={formData.proyecto_id ? true : false}
+                />
+                {hora && formData.proyecto_id && (
+                  <button
+                    type="button"
+                    onClick={() => updateTarifaActual()}
+                    onTouchStart={() => updateTarifaActual()}
+                    className="btn-secondary px-3 py-2 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+                    title="Actualizar con el precio actual del proyecto"
+                  >
+                    Actualizar precio
+                  </button>
+                )}
+              </div>
               {formData.proyecto_id && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Tarifa del proyecto seleccionado
+                  {hora ? 'Tarifa guardada (puedes actualizar con el botón)' : 'Tarifa del proyecto seleccionado'}
                 </p>
               )}
             </div>

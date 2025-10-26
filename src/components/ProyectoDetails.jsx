@@ -263,26 +263,26 @@ function ProyectoDetails({ proyecto, onClose }) {
                     
                     {/* Fila de total */}
                     {horas.length > 0 && (
-                      <tr className="bg-gray-50 border-t-2 border-gray-300">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                      <tr className="bg-orange-600 border-t-2 border-orange-700">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           TOTAL
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           -
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           -
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           {resumen?.totalHoras.toFixed(2) || '0.00'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           <div className="flex items-center">
-                            <Euro className="h-4 w-4 text-green-600 mr-1" />
+                            <Euro className="h-4 w-4 text-white mr-1" />
                             {resumen?.totalGanancias.toFixed(2) || '0.00'}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        <td className="px-6 py-4 text-sm font-bold text-white">
                           -
                         </td>
                       </tr>
