@@ -42,16 +42,18 @@ const LandingPage = () => {
                 Hourly
               </span>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Botón Iniciar Sesión - Rojo en móvil, naranja en desktop */}
               <Link
                 to="/login"
-                className="text-orange-700 hover:text-orange-800 font-medium transition-colors"
+                className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 sm:bg-transparent sm:text-orange-700 sm:hover:text-orange-800 sm:hover:bg-orange-50 sm:shadow-none sm:px-2 sm:py-1 text-sm sm:text-base"
               >
                 Iniciar Sesión
               </Link>
+              {/* Botón Comenzar Gratis - Solo visible en desktop */}
               <Link
                 to="/register"
-                className="gradient-orange text-white px-6 py-2 rounded-lg font-medium hover:shadow-xl transition-all duration-200 shadow-lg"
+                className="hidden sm:inline-block gradient-orange text-white px-6 py-2 rounded-lg font-medium hover:shadow-xl transition-all duration-200 shadow-lg"
               >
                 Comenzar Gratis
               </Link>
