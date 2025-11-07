@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, Euro, Calendar, Download, Filter, FileText } from 'lucide-react';
+import { Plus, Clock, Euro, Calendar, Download, Filter, FileText, Briefcase } from 'lucide-react';
 import apiService from '../services/api';
 import HorasList from './HorasList';
 import HorasForm from './HorasForm';
@@ -7,6 +7,7 @@ import ProyectosList from './ProyectosList';
 import ProyectoForm from './ProyectoForm';
 import ProyectoDetails from './ProyectoDetails';
 import Informes from './Informes';
+import Contratos from './Contratos';
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('horas');
@@ -100,6 +101,7 @@ function Dashboard() {
   const tabs = [
     { id: 'horas', label: 'Horas Trabajadas', icon: Clock },
     { id: 'proyectos', label: 'Proyectos', icon: Calendar },
+    { id: 'contratos', label: 'Contratos', icon: Briefcase },
     { id: 'informes', label: 'Informes', icon: FileText },
   ];
 
@@ -235,7 +237,7 @@ function Dashboard() {
                 <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">{tab.label}</span>
                 <span className="sm:hidden">
-                  {tab.id === 'horas' ? 'Horas' : tab.id === 'proyectos' ? 'Proyectos' : 'Informes'}
+                  {tab.id === 'horas' ? 'Horas' : tab.id === 'proyectos' ? 'Proyectos' : tab.id === 'contratos' ? 'Contratos' : 'Informes'}
                 </span>
               </button>
             );
@@ -292,6 +294,10 @@ function Dashboard() {
               onDataChange={handleProyectoSaved}
             />
           </>
+        )}
+
+        {activeTab === 'contratos' && (
+          <Contratos />
         )}
 
         {activeTab === 'informes' && (

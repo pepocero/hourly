@@ -142,4 +142,115 @@ export class DatabaseService {
     const stmt = this.db.prepare(query);
     return await stmt.bind(...params).first();
   }
+
+  // ========== CONTRATOS ==========
+  
+  async getContratos(userId) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM contratos 
+      WHERE user_id = ? AND activo = 1
+      ORDER BY nombre ASC
+    `);
+    return await stmt.bind(userId).all();
+  }
+
+  async getContratoById(contratoId, userId) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM contratos 
+      WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(contratoId, userId).first();
+  }
+
+  async createContrato(userId, nombre, horasSemanales, valorHoraExtra) {
+    const stmt = this.db.prepare(`
+      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra)
+      VALUES (?, ?, ?, ?)
+    `);
+    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra).run();
+  }
+
+  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra) {
+    const stmt = this.db.prepare(`
+      UPDATE contratos 
+      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, contratoId, userId).run();
+  }
+
+  async deleteContrato(contratoId, userId) {
+    const stmt = this.db.prepare(`
+      UPDATE contratos 
+      SET activo = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(contratoId, userId).run();
+  }
+
+  // ========== HORARIOS DE CONTRATO ==========
+  
+  async getHorariosContrato(userId, contratoId = null, fechaInicio = null, fechaFin = null) {
+    let query = `
+      SELECT hc.*, c.nombre as contrato_nombre, c.horas_semanales, c.valor_hora_extra
+      FROM horarios_contrato hc
+      LEFT JOIN contratos c ON hc.contrato_id = c.id
+      WHERE hc.user_id = ?
+    `;
+    const params = [userId];
+
+    if (contratoId) {
+      query += ` AND hc.contrato_id = ?`;
+      params.push(contratoId);
+    }
+
+    if (fechaInicio) {
+      query += ` AND hc.fecha >= ?`;
+      params.push(fechaInicio);
+    }
+
+    if (fechaFin) {
+      query += ` AND hc.fecha <= ?`;
+      params.push(fechaFin);
+    }
+
+    query += ` ORDER BY hc.fecha DESC, hc.hora_entrada DESC`;
+
+    const stmt = this.db.prepare(query);
+    return await stmt.bind(...params).all();
+  }
+
+  async createHorarioContrato(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion) {
+    const stmt = this.db.prepare(`
+      INSERT INTO horarios_contrato (user_id, contrato_id, fecha, hora_entrada, hora_salida, duracion_minutos, descripcion)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    return await stmt.bind(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion).run();
+  }
+
+  async updateHorarioContrato(horarioId, userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion) {
+    const stmt = this.db.prepare(`
+      UPDATE horarios_contrato 
+      SET contrato_id = ?, fecha = ?, hora_entrada = ?, hora_salida = ?, 
+          duracion_minutos = ?, descripcion = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, horarioId, userId).run();
+  }
+
+  async deleteHorarioContrato(horarioId, userId) {
+    const stmt = this.db.prepare(`DELETE FROM horarios_contrato WHERE id = ? AND user_id = ?`);
+    return await stmt.bind(horarioId, userId).run();
+  }
+
+  async getResumenSemanalContrato(userId, contratoId, fechaInicio, fechaFin) {
+    const stmt = this.db.prepare(`
+      SELECT 
+        SUM(duracion_minutos) as total_minutos,
+        COUNT(*) as total_registros
+      FROM horarios_contrato
+      WHERE user_id = ? AND contrato_id = ? AND fecha >= ? AND fecha <= ?
+    `);
+    return await stmt.bind(userId, contratoId, fechaInicio, fechaFin).first();
+  }
 }

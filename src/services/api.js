@@ -184,6 +184,74 @@ class ApiService {
       throw error;
     }
   }
+
+  // ========== CONTRATOS ==========
+
+  async getContratos() {
+    return this.request('/api/contratos');
+  }
+
+  async createContrato(contrato) {
+    return this.request('/api/contratos', {
+      method: 'POST',
+      body: JSON.stringify(contrato),
+    });
+  }
+
+  async updateContrato(id, contrato) {
+    return this.request(`/api/contratos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(contrato),
+    });
+  }
+
+  async deleteContrato(id) {
+    return this.request(`/api/contratos/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ========== HORARIOS DE CONTRATO ==========
+
+  async getHorariosContrato(contratoId = null, fechaInicio = null, fechaFin = null) {
+    const params = new URLSearchParams();
+    if (contratoId) params.append('contrato_id', contratoId);
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const endpoint = `/api/horarios-contrato${params.toString() ? `?${params.toString()}` : ''}`;
+    return this.request(endpoint);
+  }
+
+  async createHorarioContrato(horario) {
+    return this.request('/api/horarios-contrato', {
+      method: 'POST',
+      body: JSON.stringify(horario),
+    });
+  }
+
+  async updateHorarioContrato(id, horario) {
+    return this.request(`/api/horarios-contrato/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(horario),
+    });
+  }
+
+  async deleteHorarioContrato(id) {
+    return this.request(`/api/horarios-contrato/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getResumenSemanalContrato(contratoId, fechaInicio, fechaFin) {
+    const params = new URLSearchParams();
+    params.append('contrato_id', contratoId);
+    params.append('fecha_inicio', fechaInicio);
+    params.append('fecha_fin', fechaFin);
+
+    const endpoint = `/api/horarios-contrato/resumen?${params.toString()}`;
+    return this.request(endpoint);
+  }
 }
 
 export default new ApiService();

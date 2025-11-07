@@ -1,0 +1,175 @@
+import React, { useState, useEffect } from 'react';
+import { X, Briefcase } from 'lucide-react';
+import apiService from '../services/api';
+
+function ContratoForm({ contrato, onClose, onSave }) {
+  const [formData, setFormData] = useState({
+    nombre: '',
+    horas_semanales: '40',
+    valor_hora_extra: '0'
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (contrato) {
+      setFormData({
+        nombre: contrato.nombre || '',
+        horas_semanales: contrato.horas_semanales?.toString() || '40',
+        valor_hora_extra: contrato.valor_hora_extra?.toString() || '0'
+      });
+    }
+  }, [contrato]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const dataToSend = {
+        nombre: formData.nombre,
+        horas_semanales: parseFloat(formData.horas_semanales),
+        valor_hora_extra: parseFloat(formData.valor_hora_extra)
+      };
+
+      let response;
+      if (contrato) {
+        response = await apiService.updateContrato(contrato.id, dataToSend);
+      } else {
+        response = await apiService.createContrato(dataToSend);
+      }
+
+      if (response.success) {
+        onSave();
+      } else {
+        setError(response.error || 'Error al guardar');
+      }
+    } catch (error) {
+      setError(error.message || 'Error al guardar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-3 sm:p-4 sm:p-6 border-b border-gray-200">
+          <div className="flex items-center space-x-2">
+            <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+              {contrato ? 'Editar Contrato' : 'Nuevo Contrato'}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1"
+          >
+            <X className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-3 sm:p-4 sm:p-6 space-y-3 sm:space-y-4">
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          {/* Nombre */}
+          <div>
+            <label htmlFor="nombre" className="form-label">
+              Nombre del Contrato *
+            </label>
+            <input
+              type="text"
+              id="nombre"
+              name="nombre"
+              required
+              value={formData.nombre}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="Ej: Empresa XYZ"
+            />
+          </div>
+
+          {/* Horas semanales */}
+          <div>
+            <label htmlFor="horas_semanales" className="form-label">
+              Horas Semanales *
+            </label>
+            <input
+              type="number"
+              step="0.5"
+              id="horas_semanales"
+              name="horas_semanales"
+              required
+              min="0"
+              value={formData.horas_semanales}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="40"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Horas que debes cumplir por semana según tu contrato
+            </p>
+          </div>
+
+          {/* Valor hora extra */}
+          <div>
+            <label htmlFor="valor_hora_extra" className="form-label">
+              Valor Hora Extra
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              id="valor_hora_extra"
+              name="valor_hora_extra"
+              min="0"
+              value={formData.valor_hora_extra}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="0.00"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Precio por cada hora extra trabajada después de cumplir las horas semanales
+            </p>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-3 sm:pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-secondary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
+            >
+              {loading ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default ContratoForm;
+

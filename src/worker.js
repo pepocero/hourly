@@ -655,6 +655,500 @@ export default {
         }
       }
 
+      // ========== CONTRATOS ==========
+
+      // GET /api/contratos - Obtener contratos
+      if (url.pathname === '/api/contratos' && request.method === 'GET') {
+        try {
+          const contratos = await db.getContratos(authResult.userId);
+          
+          return new Response(JSON.stringify({
+            success: true,
+            data: contratos.results || [],
+            message: 'Contratos obtenidos exitosamente'
+          }), {
+            status: 200,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+          
+        } catch (error) {
+          console.error('Error en /api/contratos (GET):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // POST /api/contratos - Crear contrato
+      if (url.pathname === '/api/contratos' && request.method === 'POST') {
+        try {
+          const { nombre, horas_semanales, valor_hora_extra } = await request.json();
+
+          if (!nombre || !horas_semanales) {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Nombre y horas semanales son requeridos'
+            }), {
+              status: 400,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          const result = await db.createContrato(
+            authResult.userId,
+            nombre,
+            parseFloat(horas_semanales),
+            parseFloat(valor_hora_extra) || 0
+          );
+
+          if (result.success) {
+            return new Response(JSON.stringify({ 
+              success: true,
+              data: { id: result.meta.last_row_id },
+              message: 'Contrato creado exitosamente'
+            }), {
+              status: 201,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Error al crear el contrato'
+            }), {
+              status: 500,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error en /api/contratos (POST):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // PUT /api/contratos/:id - Actualizar contrato
+      if (url.pathname.startsWith('/api/contratos/') && request.method === 'PUT') {
+        try {
+          const id = url.pathname.split('/').pop();
+          const { nombre, horas_semanales, valor_hora_extra } = await request.json();
+          
+          const result = await db.updateContrato(
+            parseInt(id),
+            authResult.userId,
+            nombre,
+            parseFloat(horas_semanales),
+            parseFloat(valor_hora_extra)
+          );
+          
+          if (result.success && result.meta.changes > 0) {
+            return new Response(JSON.stringify({ 
+              success: true,
+              message: 'Contrato actualizado exitosamente'
+            }), {
+              status: 200,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Contrato no encontrado o no actualizado'
+            }), {
+              status: 404,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error en /api/contratos/:id (PUT):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // DELETE /api/contratos/:id - Eliminar contrato
+      if (url.pathname.startsWith('/api/contratos/') && request.method === 'DELETE') {
+        try {
+          const id = url.pathname.split('/').pop();
+          const result = await db.deleteContrato(parseInt(id), authResult.userId);
+          
+          if (result.success && result.meta.changes > 0) {
+            return new Response(JSON.stringify({ 
+              success: true,
+              message: 'Contrato eliminado exitosamente'
+            }), {
+              status: 200,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Contrato no encontrado'
+            }), {
+              status: 404,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error en /api/contratos/:id (DELETE):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // GET /api/horarios-contrato - Obtener horarios de contrato
+      if (url.pathname === '/api/horarios-contrato' && request.method === 'GET') {
+        try {
+          const contratoId = url.searchParams.get('contrato_id');
+          const fechaInicio = url.searchParams.get('fecha_inicio');
+          const fechaFin = url.searchParams.get('fecha_fin');
+          
+          const horarios = await db.getHorariosContrato(
+            authResult.userId,
+            contratoId ? parseInt(contratoId) : null,
+            fechaInicio,
+            fechaFin
+          );
+          
+          return new Response(JSON.stringify({
+            success: true,
+            data: horarios.results || [],
+            message: 'Horarios obtenidos exitosamente'
+          }), {
+            status: 200,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+          
+        } catch (error) {
+          console.error('Error en /api/horarios-contrato (GET):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // POST /api/horarios-contrato - Crear horario de contrato
+      if (url.pathname === '/api/horarios-contrato' && request.method === 'POST') {
+        try {
+          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion } = await request.json();
+
+          if (!contrato_id || !fecha || !hora_entrada) {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Contrato, fecha y hora de entrada son requeridos'
+            }), {
+              status: 400,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          // Calcular duración
+          let duracionMinutos = 0;
+          if (hora_salida) {
+            const entrada = new Date(`2000-01-01T${hora_entrada}`);
+            const salida = new Date(`2000-01-01T${hora_salida}`);
+            duracionMinutos = Math.round((salida - entrada) / (1000 * 60));
+            
+            if (duracionMinutos < 0) {
+              duracionMinutos += 24 * 60;
+            }
+          }
+
+          const result = await db.createHorarioContrato(
+            authResult.userId,
+            parseInt(contrato_id),
+            fecha,
+            hora_entrada,
+            hora_salida,
+            duracionMinutos,
+            descripcion
+          );
+
+          if (result.success) {
+            return new Response(JSON.stringify({ 
+              success: true,
+              data: { id: result.meta.last_row_id },
+              message: 'Horario registrado exitosamente'
+            }), {
+              status: 201,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Error al registrar el horario'
+            }), {
+              status: 500,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error en /api/horarios-contrato (POST):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // PUT /api/horarios-contrato/:id - Actualizar horario de contrato
+      if (url.pathname.startsWith('/api/horarios-contrato/') && request.method === 'PUT') {
+        try {
+          const id = url.pathname.split('/').pop();
+          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion } = await request.json();
+          
+          // Calcular duración
+          let duracionMinutos = 0;
+          if (hora_entrada && hora_salida) {
+            const entrada = new Date(`2000-01-01T${hora_entrada}`);
+            const salida = new Date(`2000-01-01T${hora_salida}`);
+            duracionMinutos = Math.round((salida - entrada) / (1000 * 60));
+            
+            if (duracionMinutos < 0) {
+              duracionMinutos += 24 * 60;
+            }
+          }
+
+          const result = await db.updateHorarioContrato(
+            parseInt(id),
+            authResult.userId,
+            parseInt(contrato_id),
+            fecha,
+            hora_entrada,
+            hora_salida,
+            duracionMinutos,
+            descripcion
+          );
+          
+          if (result.success && result.meta.changes > 0) {
+            return new Response(JSON.stringify({ 
+              success: true,
+              message: 'Horario actualizado exitosamente'
+            }), {
+              status: 200,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Horario no encontrado o no actualizado'
+            }), {
+              status: 404,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error en /api/horarios-contrato/:id (PUT):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // DELETE /api/horarios-contrato/:id - Eliminar horario de contrato
+      if (url.pathname.startsWith('/api/horarios-contrato/') && request.method === 'DELETE') {
+        try {
+          const id = url.pathname.split('/').pop();
+          const result = await db.deleteHorarioContrato(parseInt(id), authResult.userId);
+          
+          if (result.success && result.meta.changes > 0) {
+            return new Response(JSON.stringify({ 
+              success: true,
+              message: 'Horario eliminado exitosamente'
+            }), {
+              status: 200,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          } else {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Horario no encontrado'
+            }), {
+              status: 404,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+        } catch (error) {
+          console.error('Error en /api/horarios-contrato/:id (DELETE):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
+      // GET /api/horarios-contrato/resumen - Obtener resumen semanal
+      if (url.pathname === '/api/horarios-contrato/resumen' && request.method === 'GET') {
+        try {
+          const contratoId = url.searchParams.get('contrato_id');
+          const fechaInicio = url.searchParams.get('fecha_inicio');
+          const fechaFin = url.searchParams.get('fecha_fin');
+
+          if (!contratoId || !fechaInicio || !fechaFin) {
+            return new Response(JSON.stringify({ 
+              success: false,
+              error: 'Contrato, fecha de inicio y fin son requeridos'
+            }), {
+              status: 400,
+              headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          const resumen = await db.getResumenSemanalContrato(
+            authResult.userId,
+            parseInt(contratoId),
+            fechaInicio,
+            fechaFin
+          );
+          
+          return new Response(JSON.stringify({
+            success: true,
+            data: resumen,
+            message: 'Resumen obtenido exitosamente'
+          }), {
+            status: 200,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+          
+        } catch (error) {
+          console.error('Error en /api/horarios-contrato/resumen (GET):', error);
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      }
+
       if (url.pathname === '/api/horas' && request.method === 'GET') {
         try {
           const fechaInicio = url.searchParams.get('fecha_inicio');
