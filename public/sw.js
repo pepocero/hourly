@@ -20,6 +20,11 @@ self.addEventListener('install', (event) => {
 
 // Interceptar peticiones de red
 self.addEventListener('fetch', (event) => {
+  // Ignorar peticiones que no sean http/https (extensiones del navegador, etc)
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
