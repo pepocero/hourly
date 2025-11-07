@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Edit, Trash2, Calendar, Clock } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 
-function HorariosContratoList({ contratoId, onEdit, onDataChange }) {
+const HorariosContratoList = forwardRef(({ contratoId, color, contratos, onEdit, onDataChange }, ref) => {
   const [horarios, setHorarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -11,13 +11,20 @@ function HorariosContratoList({ contratoId, onEdit, onDataChange }) {
   const [horarioToDelete, setHorarioToDelete] = useState(null);
 
   useEffect(() => {
-    loadHorarios();
+    if (contratoId !== undefined) {
+      loadHorarios();
+    }
   }, [contratoId]);
+
+  // Exponer la función loadHorarios para que pueda ser llamada desde el componente padre
+  useImperativeHandle(ref, () => ({
+    loadHorarios
+  }));
 
   const loadHorarios = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getHorariosContrato(contratoId);
+      const response = await apiService.getHorariosContrato(contratoId || null);
       if (response.success) {
         setHorarios(response.data);
       }
@@ -27,6 +34,13 @@ function HorariosContratoList({ contratoId, onEdit, onDataChange }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Obtener color del contrato
+  const getContratoColor = (contratoIdParam) => {
+    if (!contratos) return '#8b5cf6';
+    const contrato = contratos.find(c => c.id === contratoIdParam);
+    return contrato?.color || '#8b5cf6';
   };
 
   const handleDeleteClick = (horario) => {
@@ -105,16 +119,30 @@ function HorariosContratoList({ contratoId, onEdit, onDataChange }) {
         {horarios.map((horario) => (
           <div
             key={horario.id}
-            className="p-3 sm:p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+            className="p-3 sm:p-4 bg-white border-l-4 border-r border-t border-b border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+            style={{ borderLeftColor: getContratoColor(horario.contrato_id) }}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                {/* Fecha */}
-                <div className="flex items-center space-x-2 mb-2">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatDate(horario.fecha)}
-                  </span>
+                {/* Contrato y Fecha */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2 space-y-1 sm:space-y-0">
+                  {horario.contrato_nombre && (
+                    <div className="flex items-center space-x-1">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: getContratoColor(horario.contrato_id) }}
+                      ></div>
+                      <span className="text-xs font-medium text-gray-600">
+                        {horario.contrato_nombre}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-medium text-gray-900">
+                      {formatDate(horario.fecha)}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Horario */}
@@ -176,7 +204,7 @@ function HorariosContratoList({ contratoId, onEdit, onDataChange }) {
       )}
     </>
   );
-}
+});
 
 export default HorariosContratoList;
 

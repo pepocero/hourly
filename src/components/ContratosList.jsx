@@ -12,20 +12,29 @@ function ContratosList({ contratos, contratoSeleccionado, onSelect, onEdit, onDe
   }
 
   return (
-    <div className="mt-4 space-y-2">
+    <div className="mt-4 space-y-3">
       {contratos.map((contrato) => (
         <div
           key={contrato.id}
           onClick={() => onSelect(contrato)}
-          className={`p-3 sm:p-4 rounded-lg border-2 transition-all cursor-pointer ${
+          className={`p-3 sm:p-4 rounded-lg border-l-[6px] border-r-2 border-t-2 border-b-2 transition-all cursor-pointer shadow-sm hover:shadow-md ${
             contratoSeleccionado?.id === contrato.id
-              ? 'border-primary-500 bg-primary-50'
-              : 'border-gray-200 hover:border-primary-300 bg-white'
+              ? 'border-r-primary-500 border-t-primary-500 border-b-primary-500 bg-primary-50'
+              : 'border-r-gray-200 border-t-gray-200 border-b-gray-200 hover:border-r-primary-300 hover:border-t-primary-300 hover:border-b-primary-300 bg-white'
           }`}
+          style={{ 
+            borderLeftColor: contrato.color || '#8b5cf6',
+            backgroundColor: contratoSeleccionado?.id === contrato.id ? `${contrato.color}10` : 'white'
+          }}
         >
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
+                <div
+                  className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex-shrink-0 shadow-md border-2 border-white"
+                  style={{ backgroundColor: contrato.color || '#8b5cf6' }}
+                  title={`Color: ${contrato.color}`}
+                ></div>
                 {contratoSeleccionado?.id === contrato.id && (
                   <Check className="h-4 w-4 text-primary-600 flex-shrink-0" />
                 )}

@@ -162,21 +162,21 @@ export class DatabaseService {
     return await stmt.bind(contratoId, userId).first();
   }
 
-  async createContrato(userId, nombre, horasSemanales, valorHoraExtra) {
+  async createContrato(userId, nombre, horasSemanales, valorHoraExtra, color) {
     const stmt = this.db.prepare(`
-      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra, color)
+      VALUES (?, ?, ?, ?, ?)
     `);
-    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra).run();
+    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra, color).run();
   }
 
-  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra) {
+  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra, color) {
     const stmt = this.db.prepare(`
       UPDATE contratos 
-      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, updated_at = CURRENT_TIMESTAMP
+      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, color = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
-    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, contratoId, userId).run();
+    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, color, contratoId, userId).run();
   }
 
   async deleteContrato(contratoId, userId) {

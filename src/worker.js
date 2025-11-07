@@ -693,7 +693,7 @@ export default {
       // POST /api/contratos - Crear contrato
       if (url.pathname === '/api/contratos' && request.method === 'POST') {
         try {
-          const { nombre, horas_semanales, valor_hora_extra } = await request.json();
+          const { nombre, horas_semanales, valor_hora_extra, color } = await request.json();
 
           if (!nombre || !horas_semanales) {
             return new Response(JSON.stringify({ 
@@ -712,7 +712,8 @@ export default {
             authResult.userId,
             nombre,
             parseFloat(horas_semanales),
-            parseFloat(valor_hora_extra) || 0
+            parseFloat(valor_hora_extra) || 0,
+            color || '#8b5cf6'
           );
 
           if (result.success) {
@@ -760,14 +761,15 @@ export default {
       if (url.pathname.startsWith('/api/contratos/') && request.method === 'PUT') {
         try {
           const id = url.pathname.split('/').pop();
-          const { nombre, horas_semanales, valor_hora_extra } = await request.json();
+          const { nombre, horas_semanales, valor_hora_extra, color } = await request.json();
           
           const result = await db.updateContrato(
             parseInt(id),
             authResult.userId,
             nombre,
             parseFloat(horas_semanales),
-            parseFloat(valor_hora_extra)
+            parseFloat(valor_hora_extra),
+            color || '#8b5cf6'
           );
           
           if (result.success && result.meta.changes > 0) {

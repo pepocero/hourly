@@ -9,12 +9,16 @@ import HorariosContratoList from './HorariosContratoList';
 function Contratos() {
   const [contratos, setContratos] = useState([]);
   const [contratoSeleccionado, setContratoSeleccionado] = useState(null);
+  const [contratoFiltro, setContratoFiltro] = useState('all'); // 'all' o id de contrato
   const [showContratoForm, setShowContratoForm] = useState(false);
   const [showHorarioForm, setShowHorarioForm] = useState(false);
   const [editingContrato, setEditingContrato] = useState(null);
   const [editingHorario, setEditingHorario] = useState(null);
   const [loading, setLoading] = useState(true);
   const [resumenSemanal, setResumenSemanal] = useState(null);
+  
+  // Referencia para acceder a las funciones del componente HorariosContratoList
+  const horariosListRef = React.useRef(null);
 
   // Calcular fechas de la semana actual
   const getWeekDates = () => {
@@ -41,6 +45,8 @@ function Contratos() {
   useEffect(() => {
     if (contratoSeleccionado) {
       loadResumenSemanal();
+      // Inicializar filtro con el contrato seleccionado
+      setContratoFiltro(contratoSeleccionado.id.toString());
     }
   }, [contratoSeleccionado, fechasSemana]);
 
@@ -89,6 +95,10 @@ function Contratos() {
     setShowHorarioForm(false);
     setEditingHorario(null);
     loadResumenSemanal();
+    // Recargar la lista de horarios
+    if (horariosListRef.current) {
+      horariosListRef.current.loadHorarios();
+    }
   };
 
   const handleEditContrato = (contrato) => {
@@ -179,10 +189,16 @@ function Contratos() {
       {contratoSeleccionado && (
         <>
           {/* Resumen de horas semanales */}
-          <div className="card bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <div 
+            className="card border-2" 
+            style={{ 
+              backgroundColor: `${contratoSeleccionado.color}15`,
+              borderColor: contratoSeleccionado.color 
+            }}
+          >
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
+                <Calendar className="h-5 w-5" style={{ color: contratoSeleccionado.color }} />
                 <span>Resumen Semanal - {contratoSeleccionado.nombre}</span>
               </h4>
             </div>
@@ -238,13 +254,33 @@ function Contratos() {
             </div>
           </div>
 
-          {/* Lista de horarios */}
+          {/* Lista de horarios con filtro */}
           <div className="card">
-            <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-              Horarios Registrados
-            </h4>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+              <h4 className="text-base sm:text-lg font-semibold text-gray-900">
+                Horarios Registrados
+              </h4>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs sm:text-sm text-gray-600">Filtrar:</label>
+                <select
+                  value={contratoFiltro}
+                  onChange={(e) => setContratoFiltro(e.target.value)}
+                  className="input-field text-sm py-1 px-2"
+                >
+                  <option value="all">Todos los contratos</option>
+                  {contratos.map((contrato) => (
+                    <option key={contrato.id} value={contrato.id}>
+                      {contrato.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <HorariosContratoList 
-              contratoId={contratoSeleccionado.id}
+              ref={horariosListRef}
+              contratoId={contratoFiltro === 'all' ? null : parseInt(contratoFiltro)}
+              color={contratoSeleccionado.color}
+              contratos={contratos}
               onEdit={handleEditHorario}
               onDataChange={loadResumenSemanal}
             />
