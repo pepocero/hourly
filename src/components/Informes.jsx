@@ -5,11 +5,15 @@ import pdfService from '../services/pdfService';
 
 function Informes() {
   const [tipoInforme, setTipoInforme] = useState('detallado');
+  const [tipoDatos, setTipoDatos] = useState('proyectos'); // 'proyectos' o 'contratos'
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [proyectoFiltro, setProyectoFiltro] = useState('');
+  const [contratoFiltro, setContratoFiltro] = useState('');
   const [proyectos, setProyectos] = useState([]);
+  const [contratos, setContratos] = useState([]);
   const [horas, setHoras] = useState([]);
+  const [horariosContrato, setHorariosContrato] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,13 +30,14 @@ function Informes() {
 
   useEffect(() => {
     loadProyectos();
+    loadContratos();
   }, []);
 
   useEffect(() => {
     if (fechaInicio && fechaFin) {
       loadDatos();
     }
-  }, [fechaInicio, fechaFin, proyectoFiltro]);
+  }, [fechaInicio, fechaFin, proyectoFiltro, contratoFiltro, tipoDatos]);
 
   const loadProyectos = async () => {
     try {
@@ -45,30 +50,53 @@ function Informes() {
     }
   };
 
+  const loadContratos = async () => {
+    try {
+      const response = await apiService.getContratos();
+      if (response.success) {
+        setContratos(response.data);
+      }
+    } catch (error) {
+      console.error('Error cargando contratos:', error);
+    }
+  };
+
   const loadDatos = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Cargar horas trabajadas
-      const horasResponse = await apiService.getHoras(fechaInicio, fechaFin);
-      if (horasResponse.success) {
-        let horasFiltradas = horasResponse.data;
-        
-        // Aplicar filtro por proyecto si está seleccionado
-        if (proyectoFiltro) {
-          horasFiltradas = horasResponse.data.filter(hora => 
-            hora.proyecto_id === parseInt(proyectoFiltro)
-          );
+      if (tipoDatos === 'proyectos') {
+        // Cargar horas trabajadas
+        const horasResponse = await apiService.getHoras(fechaInicio, fechaFin);
+        if (horasResponse.success) {
+          let horasFiltradas = horasResponse.data;
+          
+          // Aplicar filtro por proyecto si está seleccionado
+          if (proyectoFiltro) {
+            horasFiltradas = horasResponse.data.filter(hora => 
+              hora.proyecto_id === parseInt(proyectoFiltro)
+            );
+          }
+          
+          setHoras(horasFiltradas);
         }
-        
-        setHoras(horasFiltradas);
-      }
 
-      // Cargar resumen
-      const resumenResponse = await apiService.getResumenHoras(fechaInicio, fechaFin);
-      if (resumenResponse.success) {
-        setResumen(resumenResponse.data);
+        // Cargar resumen
+        const resumenResponse = await apiService.getResumenHoras(fechaInicio, fechaFin);
+        if (resumenResponse.success) {
+          setResumen(resumenResponse.data);
+        }
+      } else {
+        // Cargar horarios de contrato
+        const horariosResponse = await apiService.getHorariosContrato(
+          contratoFiltro || null,
+          fechaInicio,
+          fechaFin
+        );
+        if (horariosResponse.success) {
+          setHorariosContrato(horariosResponse.data);
+        }
       }
 
     } catch (error) {
@@ -142,12 +170,61 @@ function Informes() {
     return subtotales;
   };
 
-  const subtotalesPorProyecto = calcularSubtotalesPorProyecto();
+  // Calcular subtotales por contrato con horas extras
+  const calcularSubtotalesPorContrato = () => {
+    const subtotales = {};
+    
+    horariosContrato.forEach(horario => {
+      const contratoId = horario.contrato_id;
+      const contratoNombre = horario.contrato_nombre;
+      
+      if (!subtotales[contratoId]) {
+        subtotales[contratoId] = {
+          nombre: contratoNombre,
+          horasSemanales: horario.horas_semanales || 0,
+          valorHoraExtra: horario.valor_hora_extra || 0,
+          totalMinutos: 0,
+          registros: []
+        };
+      }
+      
+      subtotales[contratoId].totalMinutos += parseInt(horario.duracion_minutos || 0);
+      subtotales[contratoId].registros.push(horario);
+    });
+
+    // Calcular horas extras por contrato
+    Object.keys(subtotales).forEach(contratoId => {
+      const subtotal = subtotales[contratoId];
+      const totalHoras = subtotal.totalMinutos / 60;
+      const horasNormales = Math.min(totalHoras, subtotal.horasSemanales);
+      const horasExtras = Math.max(0, totalHoras - subtotal.horasSemanales);
+      
+      subtotal.totalHoras = totalHoras;
+      subtotal.horasNormales = horasNormales;
+      subtotal.horasExtras = horasExtras;
+      subtotal.totalExtras = horasExtras * subtotal.valorHoraExtra;
+    });
+    
+    return subtotales;
+  };
+
+  const subtotalesPorProyecto = tipoDatos === 'proyectos' ? calcularSubtotalesPorProyecto() : {};
+  const subtotalesPorContrato = tipoDatos === 'contratos' ? calcularSubtotalesPorContrato() : {};
 
   // Calcular totales generales
-  const totalGeneralHoras = horas.reduce((sum, hora) => sum + (parseFloat(hora.duracion_minutos || 0) / 60), 0);
-  const totalGeneralMinutos = horas.reduce((sum, hora) => sum + parseInt(hora.duracion_minutos || 0), 0);
-  const totalGeneralGanancias = horas.reduce((sum, hora) => sum + parseFloat(hora.total || 0), 0);
+  const totalGeneralHoras = tipoDatos === 'proyectos' 
+    ? horas.reduce((sum, hora) => sum + (parseFloat(hora.duracion_minutos || 0) / 60), 0)
+    : horariosContrato.reduce((sum, horario) => sum + (parseFloat(horario.duracion_minutos || 0) / 60), 0);
+  
+  const totalGeneralMinutos = tipoDatos === 'proyectos'
+    ? horas.reduce((sum, hora) => sum + parseInt(hora.duracion_minutos || 0), 0)
+    : horariosContrato.reduce((sum, horario) => sum + parseInt(horario.duracion_minutos || 0), 0);
+  
+  const totalGeneralGanancias = tipoDatos === 'proyectos'
+    ? horas.reduce((sum, hora) => sum + parseFloat(hora.total || 0), 0)
+    : Object.values(subtotalesPorContrato).reduce((sum, subtotal) => sum + subtotal.totalExtras, 0);
+  
+  const totalRegistros = tipoDatos === 'proyectos' ? horas.length : horariosContrato.length;
 
   const tiposInforme = [
     { id: 'detallado', label: 'Informe Detallado', icon: FileText, description: 'Lista completa de horas trabajadas con subtotales por proyecto' },
@@ -212,6 +289,37 @@ function Informes() {
       {/* Filtros */}
       <div className="card">
         <div className="space-y-4">
+          {/* Selector de tipo de datos */}
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+              Tipo de Datos
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setTipoDatos('proyectos')}
+                className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                  tipoDatos === 'proyectos'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Calendar className="h-5 w-5 mx-auto mb-1" />
+                <span className="text-sm font-medium">Proyectos</span>
+              </button>
+              <button
+                onClick={() => setTipoDatos('contratos')}
+                className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                  tipoDatos === 'contratos'
+                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <BarChart3 className="h-5 w-5 mx-auto mb-1" />
+                <span className="text-sm font-medium">Contratos</span>
+              </button>
+            </div>
+          </div>
+
           {/* Tipo de informe */}
           <div>
             <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
@@ -241,7 +349,7 @@ function Informes() {
             </div>
           </div>
 
-          {/* Filtros de fecha y proyecto */}
+          {/* Filtros de fecha y proyecto/contrato */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
@@ -266,21 +374,43 @@ function Informes() {
               />
             </div>
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                Proyecto (opcional)
-              </label>
-              <select
-                value={proyectoFiltro}
-                onChange={(e) => setProyectoFiltro(e.target.value)}
-                className="input-field w-full"
-              >
-                <option value="">Todos los proyectos</option>
-                {proyectos.map((proyecto) => (
-                  <option key={proyecto.id} value={proyecto.id}>
-                    {proyecto.nombre}
-                  </option>
-                ))}
-              </select>
+              {tipoDatos === 'proyectos' ? (
+                <>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    Proyecto (opcional)
+                  </label>
+                  <select
+                    value={proyectoFiltro}
+                    onChange={(e) => setProyectoFiltro(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="">Todos los proyectos</option>
+                    {proyectos.map((proyecto) => (
+                      <option key={proyecto.id} value={proyecto.id}>
+                        {proyecto.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    Contrato (opcional)
+                  </label>
+                  <select
+                    value={contratoFiltro}
+                    onChange={(e) => setContratoFiltro(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="">Todos los contratos</option>
+                    {contratos.map((contrato) => (
+                      <option key={contrato.id} value={contrato.id}>
+                        {contrato.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
           </div>
 
@@ -306,7 +436,7 @@ function Informes() {
       )}
 
       {/* Resumen general */}
-      {resumen && (
+      {(resumen || horariosContrato.length > 0) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <div className="card">
             <div className="flex items-center">
@@ -328,9 +458,11 @@ function Informes() {
                 <Euro className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
               </div>
               <div className="ml-2 sm:ml-3 lg:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Ganancias</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">
+                  {tipoDatos === 'contratos' ? 'Total Horas Extras' : 'Total Ganancias'}
+                </p>
                 <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                  {totalGeneralGanancias.toFixed(2)}
+                  {tipoDatos === 'contratos' ? `$${totalGeneralGanancias.toFixed(2)}` : totalGeneralGanancias.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -344,7 +476,7 @@ function Informes() {
               <div className="ml-2 sm:ml-3 lg:ml-4">
                 <p className="text-xs sm:text-sm font-medium text-gray-600">Registros</p>
                 <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                  {horas.length}
+                  {totalRegistros}
                 </p>
               </div>
             </div>
@@ -356,9 +488,11 @@ function Informes() {
                 <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-orange-600" />
               </div>
               <div className="ml-2 sm:ml-3 lg:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Proyectos</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">
+                  {tipoDatos === 'proyectos' ? 'Proyectos' : 'Contratos'}
+                </p>
                 <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                  {Object.keys(subtotalesPorProyecto).length}
+                  {tipoDatos === 'proyectos' ? Object.keys(subtotalesPorProyecto).length : Object.keys(subtotalesPorContrato).length}
                 </p>
               </div>
             </div>
@@ -608,13 +742,89 @@ function Informes() {
         </div>
       )}
 
+      {/* Informe de Contratos - Resumen por contrato */}
+      {tipoDatos === 'contratos' && horariosContrato.length > 0 && (
+        <div className="card">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
+            Informe de Contratos - {formatDate(fechaInicio)} a {formatDate(fechaFin)}
+          </h3>
+
+          <div className="space-y-4">
+            {Object.entries(subtotalesPorContrato).map(([contratoId, subtotal]) => (
+              <div key={contratoId} className="bg-white border border-purple-200 rounded-lg p-4 shadow-sm">
+                {/* Nombre del contrato */}
+                <h4 className="text-base font-semibold text-gray-900 mb-3">{subtotal.nombre}</h4>
+                
+                {/* Resumen de horas */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                    <p className="text-xs text-gray-600 mb-1">Total Horas</p>
+                    <p className="text-lg font-bold text-gray-900">{subtotal.totalHoras.toFixed(2)}h</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                    <p className="text-xs text-gray-600 mb-1">Horas Normales</p>
+                    <p className="text-lg font-bold text-green-600">{subtotal.horasNormales.toFixed(2)}h</p>
+                    <p className="text-xs text-gray-500">de {subtotal.horasSemanales}h</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                    <p className="text-xs text-gray-600 mb-1">Horas Extras</p>
+                    <p className="text-lg font-bold text-orange-600">{subtotal.horasExtras.toFixed(2)}h</p>
+                    <p className="text-xs text-gray-500">${subtotal.valorHoraExtra}/h</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                    <p className="text-xs text-gray-600 mb-1">Total a Cobrar</p>
+                    <p className="text-lg font-bold text-purple-600">${subtotal.totalExtras.toFixed(2)}</p>
+                    <p className="text-xs text-gray-500">horas extras</p>
+                  </div>
+                </div>
+
+                {/* Lista de horarios */}
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Horarios Registrados ({subtotal.registros.length})</p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {subtotal.registros.map((horario) => (
+                      <div key={horario.id} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded border border-gray-200 text-sm">
+                        <div>
+                          <span className="font-medium">{formatDate(horario.fecha)}</span>
+                          <span className="mx-2 text-gray-400">•</span>
+                          <span>{formatTime(horario.hora_entrada)} - {formatTime(horario.hora_salida)}</span>
+                        </div>
+                        <div className="text-primary-600 font-medium">
+                          {formatDuration(horario.duracion_minutos)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Total general de horas extras */}
+            <div className="bg-purple-50 border border-purple-300 rounded-lg p-4 mt-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-bold text-gray-900">TOTAL HORAS EXTRAS A COBRAR</h4>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-purple-600">
+                    <Euro className="h-6 w-6 inline mr-1" />
+                    {totalGeneralGanancias.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {totalGeneralHoras.toFixed(1)} horas totales • {totalRegistros} registros
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sin datos */}
-      {horas.length === 0 && !loading && (
+      {((tipoDatos === 'proyectos' && horas.length === 0) || (tipoDatos === 'contratos' && horariosContrato.length === 0)) && !loading && (
         <div className="card text-center py-8">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No hay datos para mostrar</h3>
           <p className="text-gray-600">
-            Selecciona un rango de fechas y genera un informe para ver tus horas trabajadas.
+            Selecciona un rango de fechas y genera un informe para ver tus {tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.
           </p>
         </div>
       )}

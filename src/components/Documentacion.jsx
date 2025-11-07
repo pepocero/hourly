@@ -195,28 +195,53 @@ function Documentacion() {
             
             <div className="space-y-4 text-gray-700">
               <p>
-                Visualiza estadísticas detalladas de tu trabajo y genera reportes profesionales.
+                Visualiza estadísticas detalladas de tu trabajo y genera reportes profesionales de Proyectos y Contratos.
               </p>
               
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h3 className="font-semibold text-gray-900 mb-2">📊 Tipos de Informes</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li><strong>Proyectos</strong>: Genera informes de tus horas trabajadas en proyectos freelance con totales y ganancias</li>
+                  <li><strong>Contratos</strong>: Genera informes con cálculo de horas extras, mostrando horas normales vs extras y total a cobrar</li>
+                </ul>
+              </div>
+
               <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                 <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
                   <Download className="h-4 w-4 mr-2" />
-                  Exportar Datos
+                  Generar Informes
                 </h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm">
+                  <li>Selecciona el tipo de datos: <strong>Proyectos</strong> o <strong>Contratos</strong></li>
+                  <li>Elige el tipo de informe: Detallado, Por Proyecto/Contrato, o Mensual</li>
+                  <li>Define el rango de fechas</li>
+                  <li>Opcionalmente, filtra por un proyecto o contrato específico</li>
+                  <li>Haz clic en <strong>"Generar Informe"</strong></li>
+                  <li>Exporta a CSV o PDF según necesites</li>
+                </ol>
+              </div>
+
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <h3 className="font-semibold text-gray-900 mb-2">📈 Informes de Contratos</h3>
+                <p className="text-sm mb-2">
+                  Los informes de contratos muestran información detallada sobre horas extras:
+                </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Usa el botón <strong>"Exportar CSV"</strong> para descargar tus datos</li>
-                  <li>El archivo incluye todas las horas del período seleccionado</li>
-                  <li>Ideal para enviar reportes a clientes o para tu contabilidad</li>
-                  <li>Puedes filtrar por rango de fechas antes de exportar</li>
+                  <li><strong>Total de horas</strong> trabajadas en el período</li>
+                  <li><strong>Horas normales</strong> (dentro del límite del contrato)</li>
+                  <li><strong>Horas extras</strong> (excedente del límite)</li>
+                  <li><strong>Total a cobrar</strong> por horas extras</li>
+                  <li>Lista completa de todos los horarios registrados</li>
                 </ul>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h3 className="font-semibold text-gray-900 mb-2">📊 Estadísticas Disponibles</h3>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Total de horas trabajadas por proyecto</li>
+                  <li>Total de horas trabajadas por proyecto o contrato</li>
                   <li>Ganancias totales y por proyecto</li>
-                  <li>Distribución del tiempo entre proyectos</li>
+                  <li>Cálculo automático de horas extras en contratos</li>
+                  <li>Distribución del tiempo entre proyectos/contratos</li>
                   <li>Resúmenes mensuales y personalizados</li>
                 </ul>
               </div>
