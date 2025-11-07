@@ -5,6 +5,7 @@ import LandingPage from './components/LandingPage';
 import Login from './components/Login';
 import Register from './components/Register';
 import Dashboard from './components/Dashboard';
+import Documentacion from './components/Documentacion';
 import Layout from './components/Layout';
 
 // Registrar Service Worker para PWA
@@ -71,6 +72,17 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/documentacion" 
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Documentacion />
                 </Layout>
               </ProtectedRoute>
             } 

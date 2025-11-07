@@ -30,6 +30,13 @@ function Layout({ children }) {
 
             {/* User menu */}
             <div className="flex items-center space-x-2 sm:space-x-4">
+              <Link
+                to="/documentacion"
+                className="text-xs sm:text-sm text-orange-600 hover:text-orange-700 transition-colors px-2 py-1 rounded-md hover:bg-orange-100 font-medium"
+              >
+                Documentación
+              </Link>
+              
               <div className="hidden sm:flex items-center space-x-2">
                 <User className="h-5 w-5 text-orange-600" />
                 <span className="text-sm font-medium text-orange-800">
