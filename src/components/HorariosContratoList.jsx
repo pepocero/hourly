@@ -172,18 +172,40 @@ const HorariosContratoList = forwardRef(({ contratoId, color, contratos, onEdit,
               {/* Botones de acción */}
               <div className="flex items-center space-x-1 sm:space-x-2 ml-2 flex-shrink-0">
                 <button
-                  onClick={() => onEdit(horario)}
-                  onTouchStart={() => onEdit(horario)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (onEdit) {
+                      onEdit(horario);
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (onEdit) {
+                      onEdit(horario);
+                    }
+                  }}
                   className="p-1.5 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                   title="Editar horario"
+                  type="button"
                 >
                   <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
                 <button
-                  onClick={() => handleDeleteClick(horario)}
-                  onTouchStart={() => handleDeleteClick(horario)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleDeleteClick(horario);
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleDeleteClick(horario);
+                  }}
                   className="p-1.5 sm:p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
                   title="Eliminar horario"
+                  type="button"
                 >
                   <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
@@ -195,11 +217,13 @@ const HorariosContratoList = forwardRef(({ contratoId, color, contratos, onEdit,
 
       {showDeleteModal && (
         <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={handleDeleteCancel}
           title="Eliminar Horario"
           message={`¿Estás seguro de que deseas eliminar este horario del ${horarioToDelete?.fecha}?`}
           confirmText="Eliminar"
           onConfirm={handleDeleteConfirm}
-          onCancel={handleDeleteCancel}
+          type="danger"
         />
       )}
     </>

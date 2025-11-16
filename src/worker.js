@@ -19,7 +19,7 @@ export default {
     try {
       const url = new URL(request.url);
       const db = new DatabaseService(env.DB);
-      const authService = new CryptoAuthService(env.JWT_SECRET);
+      const authService = new CryptoAuthService(env.JWT_SECRET, env.LEGACY_JWT_SECRETS || '');
       
       // Health check
       if (url.pathname === '/health') {

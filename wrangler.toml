@@ -6,7 +6,7 @@ workers_dev = true
 
 [env.production]
 name = "hourly-prod"
-vars = { JWT_SECRET = "hourly-super-secret-jwt-key-production-2024", ENVIRONMENT = "production" }
+vars = { JWT_SECRET = "hourly-super-secret-jwt-key-production-2024", LEGACY_JWT_SECRETS = "hourly-super-secret-jwt-key-development-2024,hourly-super-secret-jwt-key-staging-2024", ENVIRONMENT = "production" }
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "hourly-db"
@@ -15,7 +15,7 @@ migrations_dir = "migrations"
 
 [env.staging]
 name = "hourly-staging"
-vars = { JWT_SECRET = "hourly-super-secret-jwt-key-staging-2024", ENVIRONMENT = "staging" }
+vars = { JWT_SECRET = "hourly-super-secret-jwt-key-staging-2024", LEGACY_JWT_SECRETS = "hourly-super-secret-jwt-key-development-2024", ENVIRONMENT = "staging" }
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "hourly-db"
@@ -31,4 +31,5 @@ migrations_dir = "migrations"
 
 [vars]
 JWT_SECRET = "hourly-super-secret-jwt-key-development-2024"
+LEGACY_JWT_SECRETS = "hourly-super-secret-jwt-key-production-2024,hourly-super-secret-jwt-key-staging-2024"
 ENVIRONMENT = "development"

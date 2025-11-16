@@ -1,23 +1,43 @@
 // Autenticación usando Web Crypto API nativa de Cloudflare Workers
 
 export class CryptoAuthService {
-  constructor(jwtSecret) {
+  constructor(jwtSecret, legacySecretsCsv = '') {
     this.jwtSecret = jwtSecret;
+    this.legacySecrets = (legacySecretsCsv || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
   }
 
-  // Hash de contraseña usando Web Crypto API
-  async hashPassword(password) {
+  // Hash de contraseña usando Web Crypto API con un secreto específico
+  async hashWithSecret(password, secret) {
     const encoder = new TextEncoder();
-    const data = encoder.encode(password + this.jwtSecret);
+    const data = encoder.encode(password + secret);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // Verificar contraseña
+  // Hash de contraseña con el secreto actual (retrocompatibilidad)
+  async hashPassword(password) {
+    return this.hashWithSecret(password, this.jwtSecret);
+  }
+
+  // Verificar contraseña contra el hash almacenado, probando secreto actual y heredados
   async verifyPassword(password, hash) {
-    const hashedPassword = await this.hashPassword(password);
-    return hashedPassword === hash;
+    // 1) Intento con secreto actual
+    const hashedPassword = await this.hashWithSecret(password, this.jwtSecret);
+    if (hashedPassword === hash) return true;
+
+    // 2) Intentos con secretos heredados (si existen)
+    for (const legacySecret of this.legacySecrets) {
+      const legacyHash = await this.hashWithSecret(password, legacySecret);
+      if (legacyHash === hash) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // Generar JWT token usando Web Crypto API

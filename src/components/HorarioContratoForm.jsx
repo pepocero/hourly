@@ -11,6 +11,7 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [terminaDiaSiguiente, setTerminaDiaSiguiente] = useState(false);
 
   useEffect(() => {
     if (horario) {
@@ -20,6 +21,10 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
         hora_salida: horario.hora_salida || '',
         descripcion: horario.descripcion || ''
       });
+      // Si existe hora de salida y es menor que la de entrada, asumimos que cruza medianoche
+      if (horario.hora_entrada && horario.hora_salida && horario.hora_salida < horario.hora_entrada) {
+        setTerminaDiaSiguiente(true);
+      }
     }
   }, [horario]);
 
@@ -120,7 +125,16 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
                 name="hora_entrada"
                 required
                 value={formData.hora_entrada}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e);
+                  // Ajustar indicador de día siguiente en base a comparación
+                  const nuevaEntrada = e.target.value;
+                  if (formData.hora_salida && formData.hora_salida < nuevaEntrada) {
+                    setTerminaDiaSiguiente(true);
+                  } else {
+                    setTerminaDiaSiguiente(false);
+                  }
+                }}
                 className="input-field w-full"
               />
             </div>
@@ -133,10 +147,35 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
                 id="hora_salida"
                 name="hora_salida"
                 value={formData.hora_salida}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e);
+                  const nuevaSalida = e.target.value;
+                  if (formData.hora_entrada && nuevaSalida < formData.hora_entrada) {
+                    setTerminaDiaSiguiente(true);
+                  } else {
+                    setTerminaDiaSiguiente(false);
+                  }
+                }}
                 className="input-field w-full"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Si la salida es anterior a la entrada, se contabiliza como al día siguiente.
+              </p>
             </div>
+          </div>
+
+          {/* Indicador día siguiente */}
+          <div className="flex items-center space-x-2">
+            <input
+              id="terminaDiaSiguiente"
+              type="checkbox"
+              checked={terminaDiaSiguiente}
+              onChange={(e) => setTerminaDiaSiguiente(e.target.checked)}
+              className="h-4 w-4 text-primary-600 border-gray-300 rounded"
+            />
+            <label htmlFor="terminaDiaSiguiente" className="text-sm text-gray-700">
+              Termina al día siguiente
+            </label>
           </div>
 
           {/* Descripción */}

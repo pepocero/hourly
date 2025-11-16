@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown } from 'lucide-react';
 import apiService from '../services/api';
-import pdfService from '../services/pdfService';
 
 function Informes() {
   const [tipoInforme, setTipoInforme] = useState('detallado');
@@ -232,7 +231,7 @@ function Informes() {
     { id: 'mensual', label: 'Mensual', icon: Calendar, description: 'Resumen mensual de horas trabajadas' }
   ];
 
-  const handleExportarPDF = () => {
+  const handleExportarPDF = async () => {
     if (horas.length === 0) {
       alert('No hay datos para exportar');
       return;
@@ -241,6 +240,9 @@ function Informes() {
     const title = 'Informe de Horas Trabajadas';
     const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
     
+    // Carga diferida del servicio PDF para evitar incluir jspdf en el bundle inicial
+    const { default: pdfService } = await import('../services/pdfService');
+
     pdfService.generatePDF(
       title,
       subtitle,
