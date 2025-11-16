@@ -10,6 +10,8 @@ function Contratos() {
   const [contratos, setContratos] = useState([]);
   const [contratoSeleccionado, setContratoSeleccionado] = useState(null);
   const [contratoFiltro, setContratoFiltro] = useState('all'); // 'all' o id de contrato
+  const [fechaInicioFiltro, setFechaInicioFiltro] = useState('');
+  const [fechaFinFiltro, setFechaFinFiltro] = useState('');
   const [showContratoForm, setShowContratoForm] = useState(false);
   const [showHorarioForm, setShowHorarioForm] = useState(false);
   const [editingContrato, setEditingContrato] = useState(null);
@@ -256,29 +258,75 @@ function Contratos() {
 
           {/* Lista de horarios con filtro */}
           <div className="card">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
-              <h4 className="text-base sm:text-lg font-semibold text-gray-900">
-                Horarios Registrados
-              </h4>
-              <div className="flex items-center space-x-2">
-                <label className="text-xs sm:text-sm text-gray-600">Filtrar:</label>
-                <select
-                  value={contratoFiltro}
-                  onChange={(e) => setContratoFiltro(e.target.value)}
-                  className="input-field text-sm py-1 px-2"
-                >
-                  <option value="all">Todos los contratos</option>
-                  {contratos.map((contrato) => (
-                    <option key={contrato.id} value={contrato.id}>
-                      {contrato.nombre}
-                    </option>
-                  ))}
-                </select>
+            <div className="flex flex-col space-y-3 mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900">
+                  Horarios Registrados
+                </h4>
+              </div>
+              
+              {/* Filtros */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                <div className="flex-1 sm:flex-initial">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    Contrato
+                  </label>
+                  <select
+                    value={contratoFiltro}
+                    onChange={(e) => setContratoFiltro(e.target.value)}
+                    className="input-field text-sm py-1.5 px-2 w-full sm:w-auto"
+                  >
+                    <option value="all">Todos los contratos</option>
+                    {contratos.map((contrato) => (
+                      <option key={contrato.id} value={contrato.id}>
+                        {contrato.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex-1 sm:flex-initial">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    Fecha Inicio
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaInicioFiltro}
+                    onChange={(e) => setFechaInicioFiltro(e.target.value)}
+                    className="input-field text-sm py-1.5 px-2 w-full sm:w-auto"
+                  />
+                </div>
+                
+                <div className="flex-1 sm:flex-initial">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    Fecha Fin
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaFinFiltro}
+                    onChange={(e) => setFechaFinFiltro(e.target.value)}
+                    className="input-field text-sm py-1.5 px-2 w-full sm:w-auto"
+                  />
+                </div>
+                
+                {(fechaInicioFiltro || fechaFinFiltro) && (
+                  <button
+                    onClick={() => {
+                      setFechaInicioFiltro('');
+                      setFechaFinFiltro('');
+                    }}
+                    className="btn-secondary text-sm py-1.5 px-3 whitespace-nowrap"
+                  >
+                    Limpiar fechas
+                  </button>
+                )}
               </div>
             </div>
             <HorariosContratoList 
               ref={horariosListRef}
               contratoId={contratoFiltro === 'all' ? null : parseInt(contratoFiltro)}
+              fechaInicio={fechaInicioFiltro || null}
+              fechaFin={fechaFinFiltro || null}
               color={contratoSeleccionado.color}
               contratos={contratos}
               onEdit={handleEditHorario}

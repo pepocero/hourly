@@ -3,7 +3,7 @@ import { Edit, Trash2, Calendar, Clock } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 
-const HorariosContratoList = forwardRef(({ contratoId, color, contratos, onEdit, onDataChange }, ref) => {
+const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, color, contratos, onEdit, onDataChange }, ref) => {
   const [horarios, setHorarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -14,7 +14,7 @@ const HorariosContratoList = forwardRef(({ contratoId, color, contratos, onEdit,
     if (contratoId !== undefined) {
       loadHorarios();
     }
-  }, [contratoId]);
+  }, [contratoId, fechaInicio, fechaFin]);
 
   // Exponer la función loadHorarios para que pueda ser llamada desde el componente padre
   useImperativeHandle(ref, () => ({
@@ -24,7 +24,7 @@ const HorariosContratoList = forwardRef(({ contratoId, color, contratos, onEdit,
   const loadHorarios = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getHorariosContrato(contratoId || null);
+      const response = await apiService.getHorariosContrato(contratoId || null, fechaInicio || null, fechaFin || null);
       if (response.success) {
         setHorarios(response.data);
       }
