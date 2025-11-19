@@ -1,5 +1,5 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Edit, Trash2, Calendar, Clock } from 'lucide-react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { Edit, Trash2, Calendar, Clock, DollarSign } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 
@@ -87,6 +87,85 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       year: 'numeric'
     });
   };
+
+  // Obtener el lunes de la semana de una fecha
+  const getMondayOfWeek = (dateString) => {
+    const date = new Date(dateString + 'T00:00:00');
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Ajustar al lunes
+    const monday = new Date(date.getFullYear(), date.getMonth(), diff);
+    return monday.toISOString().split('T')[0];
+  };
+
+  // Calcular horas extras del periodo seleccionado
+  const calcularHorasExtras = useMemo(() => {
+    if (!fechaInicio || !fechaFin || horarios.length === 0) {
+      return null;
+    }
+
+    // Agrupar horarios por contrato
+    const horariosPorContrato = {};
+    horarios.forEach(horario => {
+      const contratoId = horario.contrato_id;
+      if (!horariosPorContrato[contratoId]) {
+        horariosPorContrato[contratoId] = {
+          contratoId,
+          contratoNombre: horario.contrato_nombre,
+          horasSemanales: horario.horas_semanales || 0,
+          valorHoraExtra: horario.valor_hora_extra || 0,
+          horarios: []
+        };
+      }
+      horariosPorContrato[contratoId].horarios.push(horario);
+    });
+
+    let totalHorasExtras = 0;
+    let totalImporte = 0;
+    const detallesPorContrato = [];
+
+    // Calcular horas extras por contrato
+    Object.values(horariosPorContrato).forEach(contratoData => {
+      // Agrupar horarios por semana
+      const horariosPorSemana = {};
+      contratoData.horarios.forEach(horario => {
+        const semanaLunes = getMondayOfWeek(horario.fecha);
+        if (!horariosPorSemana[semanaLunes]) {
+          horariosPorSemana[semanaLunes] = [];
+        }
+        horariosPorSemana[semanaLunes].push(horario);
+      });
+
+      // Calcular horas extras por semana
+      let horasExtrasContrato = 0;
+      Object.values(horariosPorSemana).forEach(horariosSemana => {
+        const totalMinutosSemana = horariosSemana.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
+        const totalHorasSemana = totalMinutosSemana / 60;
+        const horasExtrasSemana = Math.max(0, totalHorasSemana - contratoData.horasSemanales);
+        horasExtrasContrato += horasExtrasSemana;
+      });
+
+      const importeContrato = horasExtrasContrato * contratoData.valorHoraExtra;
+      totalHorasExtras += horasExtrasContrato;
+      totalImporte += importeContrato;
+
+      // Siempre agregar el detalle del contrato para mostrar el resumen completo
+      detallesPorContrato.push({
+        contratoNombre: contratoData.contratoNombre,
+        horasExtras: horasExtrasContrato,
+        importe: importeContrato,
+        valorHoraExtra: contratoData.valorHoraExtra,
+        horasSemanales: contratoData.horasSemanales
+      });
+    });
+
+    return {
+      totalHorasExtras,
+      totalImporte,
+      detallesPorContrato
+    };
+  }, [horarios, fechaInicio, fechaFin]);
+
+  const resumenHorasExtras = calcularHorasExtras;
 
   if (loading) {
     return (
@@ -214,6 +293,118 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
           </div>
         ))}
       </div>
+
+      {/* Resumen de Horas Extras */}
+      {resumenHorasExtras && fechaInicio && fechaFin && (
+        <div className="mt-6 p-4 bg-gradient-to-r from-orange-50 to-orange-100 border-2 border-orange-300 rounded-lg">
+          <h5 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+            <Clock className="h-5 w-5 text-orange-600" />
+            <span>Resumen de Horas Extras</span>
+          </h5>
+          
+          {resumenHorasExtras.detallesPorContrato.length > 0 ? (
+            <>
+              {/* Mostrar desglose por contrato solo si hay múltiples contratos */}
+              {resumenHorasExtras.detallesPorContrato.length > 1 && (
+                <div className="space-y-2 mb-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Desglose por contrato:</p>
+                  {resumenHorasExtras.detallesPorContrato.map((detalle, index) => (
+                    <div key={index} className="bg-white rounded-lg p-3 border border-orange-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{detalle.contratoNombre}</p>
+                          <p className="text-xs text-gray-600">
+                            Contrato: {detalle.horasSemanales}h semanales
+                            {detalle.valorHoraExtra > 0 && (
+                              <span> • Valor hora extra: ${detalle.valorHoraExtra}</span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-600">Horas Extras</p>
+                            <p className="text-lg font-bold text-orange-600">
+                              {detalle.horasExtras.toFixed(2)}h
+                            </p>
+                          </div>
+                          {detalle.valorHoraExtra > 0 && (
+                            <div className="text-right">
+                              <p className="text-sm text-gray-600">Importe</p>
+                              <p className="text-lg font-bold text-green-600">
+                                ${detalle.importe.toFixed(2)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Resumen total */}
+              <div className="bg-white rounded-lg p-4 border-2 border-orange-400">
+                {resumenHorasExtras.detallesPorContrato.length === 1 && (
+                  <div className="mb-3 pb-3 border-b border-gray-200">
+                    <p className="text-sm font-medium text-gray-900">
+                      {resumenHorasExtras.detallesPorContrato[0].contratoNombre}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Contrato: {resumenHorasExtras.detallesPorContrato[0].horasSemanales}h semanales
+                      {resumenHorasExtras.detallesPorContrato[0].valorHoraExtra > 0 && (
+                        <span> • Valor hora extra: ${resumenHorasExtras.detallesPorContrato[0].valorHoraExtra}</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <Clock className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm text-gray-600">Total Horas Extras</p>
+                      <p className="text-xl sm:text-2xl font-bold text-orange-600">
+                        {resumenHorasExtras.totalHorasExtras.toFixed(2)}h
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {resumenHorasExtras.totalImporte > 0 && (
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <DollarSign className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs sm:text-sm text-gray-600">Importe Total</p>
+                        <p className="text-xl sm:text-2xl font-bold text-green-600">
+                          ${resumenHorasExtras.totalImporte.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-xs text-gray-600">
+                    Periodo: {formatDate(fechaInicio)} - {formatDate(fechaFin)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Las horas extras se calculan semana por semana según el tipo de contrato
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="bg-white rounded-lg p-4 border border-orange-200">
+              <p className="text-sm text-gray-600 text-center">
+                No se registraron horas extras en el periodo seleccionado
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {showDeleteModal && (
         <ConfirmModal
