@@ -121,10 +121,16 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
 
     let totalHorasExtras = 0;
     let totalImporte = 0;
+    let totalHorasTrabajadas = 0; // Total de horas trabajadas en el periodo
     const detallesPorContrato = [];
 
     // Calcular horas extras por contrato
     Object.values(horariosPorContrato).forEach(contratoData => {
+      // Calcular total de horas trabajadas del contrato en el periodo
+      const totalMinutosContrato = contratoData.horarios.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
+      const totalHorasContrato = totalMinutosContrato / 60;
+      totalHorasTrabajadas += totalHorasContrato;
+
       // Agrupar horarios por semana
       const horariosPorSemana = {};
       contratoData.horarios.forEach(horario => {
@@ -152,6 +158,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       detallesPorContrato.push({
         contratoNombre: contratoData.contratoNombre,
         horasExtras: horasExtrasContrato,
+        horasTrabajadas: totalHorasContrato,
         importe: importeContrato,
         valorHoraExtra: contratoData.valorHoraExtra,
         horasSemanales: contratoData.horasSemanales
@@ -160,6 +167,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
 
     return {
       totalHorasExtras,
+      totalHorasTrabajadas,
       totalImporte,
       detallesPorContrato
     };
@@ -322,6 +330,12 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                         </div>
                         <div className="flex items-center space-x-3">
                           <div className="text-right">
+                            <p className="text-sm text-gray-600">Horas Trabajadas</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              {detalle.horasTrabajadas.toFixed(2)}h
+                            </p>
+                          </div>
+                          <div className="text-right">
                             <p className="text-sm text-gray-600">Horas Extras</p>
                             <p className="text-lg font-bold text-orange-600">
                               {detalle.horasExtras.toFixed(2)}h
@@ -358,7 +372,19 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                   </div>
                 )}
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm text-gray-600">Total Horas Trabajadas</p>
+                      <p className="text-xl sm:text-2xl font-bold text-blue-600">
+                        {resumenHorasExtras.totalHorasTrabajadas.toFixed(2)}h
+                      </p>
+                    </div>
+                  </div>
+                  
                   <div className="flex items-center space-x-3">
                     <div className="p-2 bg-orange-100 rounded-lg">
                       <Clock className="h-5 w-5 text-orange-600" />
