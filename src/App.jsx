@@ -11,46 +11,33 @@ import Layout from './components/Layout';
 // Registrar Service Worker para PWA
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
+    // Esperar a que la página esté completamente cargada
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
-        .then((registration) => {
-          console.log('ServiceWorker registered successfully:', registration.scope);
-          
-          // Verificar actualizaciones periódicamente
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Hay una nueva versión disponible
-                  console.log('New service worker available');
-                  // Recargar la página para usar la nueva versión
-                  window.location.reload();
-                }
-              });
-            }
-          });
-          
-          // Verificar actualizaciones cada hora
-          setInterval(() => {
-            registration.update();
-          }, 60 * 60 * 1000);
-        })
-        .catch((error) => {
-          console.error('ServiceWorker registration failed:', error);
-          // Si falla el registro, intentar desregistrar cualquier SW anterior
-          navigator.serviceWorker.getRegistrations().then((registrations) => {
-            registrations.forEach((reg) => {
-              reg.unregister().then((success) => {
-                if (success) {
-                  console.log('Old service worker unregistered');
-                  // Recargar después de desregistrar
-                  window.location.reload();
-                }
-              });
+      // Pequeño delay para asegurar que la página esté lista
+      setTimeout(() => {
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+          .then((registration) => {
+            console.log('ServiceWorker registered successfully:', registration.scope);
+            
+            // Verificar actualizaciones periódicamente (solo si el registro fue exitoso)
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // Hay una nueva versión disponible
+                    console.log('New service worker available');
+                    // NO recargar automáticamente, dejar que el usuario decida
+                  }
+                });
+              }
             });
+          })
+          .catch((error) => {
+            // Solo loggear el error, no hacer nada más para no interrumpir la carga
+            console.warn('ServiceWorker registration failed (non-critical):', error);
           });
-        });
+      }, 1000);
     });
   }
 }
