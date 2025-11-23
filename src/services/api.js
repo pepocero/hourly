@@ -34,22 +34,53 @@ class ApiService {
   // Método base para hacer requests
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    
+    // Crear AbortController para timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+    
     const config = {
       headers: this.getHeaders(),
       ...options,
+      signal: controller.signal,
     };
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      clearTimeout(timeoutId);
+      
+      // Verificar si la respuesta es JSON
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Si no es JSON, intentar leer como texto
+        const text = await response.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(`Error: ${response.status} ${response.statusText}`);
+        }
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error en la petición');
+        throw new Error(data.error || `Error ${response.status}: ${response.statusText}`);
       }
 
       return data;
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('API Error:', error);
+      
+      // Manejar diferentes tipos de errores
+      if (error.name === 'AbortError') {
+        throw new Error('La petición tardó demasiado. Verifica tu conexión a internet.');
+      } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('No se pudo conectar con el servidor. Verifica tu conexión a internet y que la URL de la API esté configurada correctamente.');
+      }
+      
       throw error;
     }
   }

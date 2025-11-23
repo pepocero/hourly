@@ -12,12 +12,44 @@ import Layout from './components/Layout';
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
         .then((registration) => {
           console.log('ServiceWorker registered successfully:', registration.scope);
+          
+          // Verificar actualizaciones periódicamente
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // Hay una nueva versión disponible
+                  console.log('New service worker available');
+                  // Recargar la página para usar la nueva versión
+                  window.location.reload();
+                }
+              });
+            }
+          });
+          
+          // Verificar actualizaciones cada hora
+          setInterval(() => {
+            registration.update();
+          }, 60 * 60 * 1000);
         })
         .catch((error) => {
-          console.log('ServiceWorker registration failed:', error);
+          console.error('ServiceWorker registration failed:', error);
+          // Si falla el registro, intentar desregistrar cualquier SW anterior
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            registrations.forEach((reg) => {
+              reg.unregister().then((success) => {
+                if (success) {
+                  console.log('Old service worker unregistered');
+                  // Recargar después de desregistrar
+                  window.location.reload();
+                }
+              });
+            });
+          });
         });
     });
   }
