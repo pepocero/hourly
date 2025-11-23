@@ -8,8 +8,13 @@ import Dashboard from './components/Dashboard';
 import Documentacion from './components/Documentacion';
 import Layout from './components/Layout';
 
-// Registrar Service Worker para PWA
+// Registrar Service Worker para PWA (deshabilitado temporalmente para evitar problemas de carga)
 function registerServiceWorker() {
+  // Service Worker deshabilitado temporalmente para evitar problemas de carga
+  // Se puede habilitar más adelante si es necesario
+  return;
+  
+  /* Código comentado - deshabilitar Service Worker
   if ('serviceWorker' in navigator) {
     // Esperar a que la página esté completamente cargada
     window.addEventListener('load', () => {
@@ -40,6 +45,7 @@ function registerServiceWorker() {
       }, 1000);
     });
   }
+  */
 }
 
 // Componente para rutas protegidas

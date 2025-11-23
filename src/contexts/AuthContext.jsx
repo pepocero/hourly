@@ -26,12 +26,28 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem('token');
       if (token) {
         apiService.setToken(token);
-        const response = await apiService.verifyToken();
-        if (response.success) {
-          setUser(response.data.user);
-          setIsAuthenticated(true);
-        } else {
-          // Token inválido, limpiar
+        // Agregar timeout para no bloquear la carga si la API no responde
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        );
+        
+        try {
+          const response = await Promise.race([
+            apiService.verifyToken(),
+            timeoutPromise
+          ]);
+          
+          if (response && response.success) {
+            setUser(response.data.user);
+            setIsAuthenticated(true);
+          } else {
+            // Token inválido, limpiar
+            apiService.setToken(null);
+          }
+        } catch (timeoutError) {
+          // Si hay timeout o error de conexión, simplemente no autenticar
+          // pero permitir que la página se cargue
+          console.warn('No se pudo verificar el token (API no disponible):', timeoutError);
           apiService.setToken(null);
         }
       }
@@ -39,6 +55,7 @@ export function AuthProvider({ children }) {
       console.error('Error verificando autenticación:', error);
       apiService.setToken(null);
     } finally {
+      // Siempre marcar como no cargando, incluso si hay errores
       setLoading(false);
     }
   };

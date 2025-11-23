@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:all": "concurrently \"npm run dev\" \"npm run worker:dev\"",
     "dev:frontend": "vite",
-    "dev:worker": "npx wrangler dev src/worker.js --config wrangler.workers.toml",
+    "dev:worker": "npx wrangler dev src/worker.js --config wrangler.toml",
     "deploy": "npm run build && npx wrangler pages deploy public",
     "build": "vite build",
     "preview": "vite preview",
@@ -16,7 +16,7 @@
     "db:migrate": "npx wrangler d1 migrations apply hourly-db --local",
     "db:migrate:prod": "npx wrangler d1 migrations apply hourly-db",
     "db:studio": "npx wrangler d1 execute hourly-db --local --command='SELECT * FROM users'",
-    "worker:dev": "npx wrangler dev src/worker.js --config wrangler.workers.toml",
+    "worker:dev": "npx wrangler dev src/worker.js --config wrangler.toml",
     "worker:deploy": "npx wrangler deploy src/worker.js"
   },
   "dependencies": {
