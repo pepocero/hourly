@@ -1,6 +1,11 @@
 // Worker definitivo para Hourly - Usa D1 real para autenticación y persistencia
 import { DatabaseService } from './utils/database.js';
 import { CryptoAuthService } from './utils/cryptoAuth.js';
+import {
+  calcularHorasExtrasPorSemanas,
+  calcularAjusteSemana,
+  calcularLiquidacionSemana
+} from './utils/contratoHoras.js';
 
 export default {
   async fetch(request, env) {
@@ -693,7 +698,7 @@ export default {
       // POST /api/contratos - Crear contrato
       if (url.pathname === '/api/contratos' && request.method === 'POST') {
         try {
-          const { nombre, horas_semanales, valor_hora_extra, color } = await request.json();
+          const { nombre, horas_semanales, valor_hora_extra, color, dias_laborables, dia_cierre_liquidacion } = await request.json();
 
           if (!nombre || !horas_semanales) {
             return new Response(JSON.stringify({ 
@@ -708,12 +713,35 @@ export default {
             });
           }
 
+          const diasLaborables = parseInt(dias_laborables, 10);
+          if (isNaN(diasLaborables) || diasLaborables < 1 || diasLaborables > 127) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Debe seleccionar al menos un día laborable'
+            }), {
+              status: 400,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          let diaCierre = dia_cierre_liquidacion !== null && dia_cierre_liquidacion !== undefined && dia_cierre_liquidacion !== ''
+            ? parseInt(dia_cierre_liquidacion, 10)
+            : null;
+          if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6 || !(diasLaborables & (1 << diaCierre)))) {
+            diaCierre = null;
+          }
+
           const result = await db.createContrato(
             authResult.userId,
             nombre,
             parseFloat(horas_semanales),
             parseFloat(valor_hora_extra) || 0,
-            color || '#8b5cf6'
+            color || '#8b5cf6',
+            diasLaborables,
+            diaCierre
           );
 
           if (result.success) {
@@ -761,7 +789,28 @@ export default {
       if (url.pathname.startsWith('/api/contratos/') && request.method === 'PUT') {
         try {
           const id = url.pathname.split('/').pop();
-          const { nombre, horas_semanales, valor_hora_extra, color } = await request.json();
+          const { nombre, horas_semanales, valor_hora_extra, color, dias_laborables, dia_cierre_liquidacion } = await request.json();
+
+          const diasLaborables = parseInt(dias_laborables, 10);
+          if (isNaN(diasLaborables) || diasLaborables < 1 || diasLaborables > 127) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Debe seleccionar al menos un día laborable'
+            }), {
+              status: 400,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+
+          let diaCierre = dia_cierre_liquidacion !== null && dia_cierre_liquidacion !== undefined && dia_cierre_liquidacion !== ''
+            ? parseInt(dia_cierre_liquidacion, 10)
+            : null;
+          if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6 || !(diasLaborables & (1 << diaCierre)))) {
+            diaCierre = null;
+          }
           
           const result = await db.updateContrato(
             parseInt(id),
@@ -769,7 +818,9 @@ export default {
             nombre,
             parseFloat(horas_semanales),
             parseFloat(valor_hora_extra),
-            color || '#8b5cf6'
+            color || '#8b5cf6',
+            diasLaborables,
+            diaCierre
           );
           
           if (result.success && result.meta.changes > 0) {
@@ -1147,6 +1198,253 @@ export default {
               'Content-Type': 'application/json',
               ...corsHeaders
             }
+          });
+        }
+      }
+
+      // GET /api/liquidaciones-contrato - Listar liquidaciones
+      if (url.pathname === '/api/liquidaciones-contrato' && request.method === 'GET') {
+        try {
+          const contratoId = url.searchParams.get('contrato_id');
+          const semanaLunes = url.searchParams.get('semana_lunes');
+
+          const liquidaciones = await db.getLiquidacionesContrato(
+            authResult.userId,
+            contratoId ? parseInt(contratoId) : null,
+            semanaLunes || null
+          );
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: liquidaciones.results || [],
+            message: 'Liquidaciones obtenidas exitosamente'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/liquidaciones-contrato (GET):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
+      // POST /api/liquidaciones-contrato - Registrar liquidación
+      if (url.pathname === '/api/liquidaciones-contrato' && request.method === 'POST') {
+        try {
+          const { contrato_id, fecha_inicio, fecha_fin, notas } = await request.json();
+
+          if (!contrato_id || !fecha_inicio || !fecha_fin) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Contrato, fecha de inicio y fin son requeridos'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const contrato = await db.getContratoById(parseInt(contrato_id), authResult.userId);
+          if (!contrato) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Contrato no encontrado'
+            }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const horariosResult = await db.getHorariosContrato(
+            authResult.userId,
+            parseInt(contrato_id),
+            fecha_inicio,
+            fecha_fin
+          );
+          const horarios = horariosResult.results || [];
+
+          if (horarios.length === 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'No hay horarios en el periodo seleccionado'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const resultado = calcularHorasExtrasPorSemanas(horarios, contrato, fecha_inicio, fecha_fin);
+          const creadas = [];
+
+          for (const semana of resultado.semanas) {
+            const existing = await db.getLiquidacionByTipo(
+              authResult.userId,
+              parseInt(contrato_id),
+              semana.semanaLunes,
+              semana.tipo
+            );
+
+            if (existing) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: `Ya existe una liquidación ${semana.tipo} para la semana del ${semana.semanaLunes}`
+              }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            const insertResult = await db.createLiquidacionContrato(authResult.userId, {
+              contrato_id: parseInt(contrato_id),
+              semana_lunes: semana.semanaLunes,
+              fecha_inicio,
+              fecha_cierre: fecha_fin,
+              horas_trabajadas: semana.horasTrabajadas,
+              horas_esperadas: semana.horasEsperadas,
+              horas_extras: semana.horasExtras,
+              importe: semana.importe,
+              tipo: semana.tipo,
+              notas: notas || null
+            });
+
+            creadas.push({
+              id: insertResult.meta?.last_row_id,
+              ...semana,
+              tipo: semana.tipo
+            });
+
+            if (semana.tipo === 'definitiva') {
+              const anticipada = await db.getLiquidacionByTipo(
+                authResult.userId,
+                parseInt(contrato_id),
+                semana.semanaLunes,
+                'anticipada'
+              );
+
+              if (anticipada) {
+                const ajuste = calcularAjusteSemana(semana, {
+                  horasExtras: anticipada.horas_extras,
+                  valorHoraExtra: contrato.valor_hora_extra
+                });
+
+                if (ajuste) {
+                  const ajusteResult = await db.createLiquidacionContrato(authResult.userId, {
+                    contrato_id: parseInt(contrato_id),
+                    semana_lunes: semana.semanaLunes,
+                    fecha_inicio,
+                    fecha_cierre: fecha_fin,
+                    horas_trabajadas: semana.horasTrabajadas,
+                    horas_esperadas: semana.horasEsperadas,
+                    horas_extras: ajuste.horasExtras,
+                    importe: ajuste.importe,
+                    tipo: 'ajuste',
+                    notas: 'Ajuste por liquidación anticipada previa'
+                  });
+
+                  creadas.push({
+                    id: ajusteResult.meta?.last_row_id,
+                    semanaLunes: semana.semanaLunes,
+                    horasExtras: ajuste.horasExtras,
+                    importe: ajuste.importe,
+                    tipo: 'ajuste'
+                  });
+                }
+              }
+            }
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: creadas,
+            message: 'Liquidación registrada exitosamente'
+          }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/liquidaciones-contrato (POST):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
+      // GET /api/liquidaciones-contrato/ajuste-pendiente
+      if (url.pathname === '/api/liquidaciones-contrato/ajuste-pendiente' && request.method === 'GET') {
+        try {
+          const contratoId = parseInt(url.searchParams.get('contrato_id'));
+          const semanaLunes = url.searchParams.get('semana_lunes');
+          const fechaFin = url.searchParams.get('fecha_fin');
+
+          if (!contratoId || !semanaLunes) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Contrato y semana_lunes son requeridos'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const anticipada = await db.getLiquidacionByTipo(authResult.userId, contratoId, semanaLunes, 'anticipada');
+          const definitiva = await db.getLiquidacionByTipo(authResult.userId, contratoId, semanaLunes, 'definitiva');
+
+          if (!anticipada || definitiva) {
+            return new Response(JSON.stringify({
+              success: true,
+              data: null,
+              message: 'Sin ajuste pendiente'
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const contrato = await db.getContratoById(contratoId, authResult.userId);
+          const lunes = semanaLunes;
+          const fin = fechaFin || anticipada.fecha_cierre;
+
+          const horariosResult = await db.getHorariosContrato(authResult.userId, contratoId, lunes, fin);
+          const horarios = horariosResult.results || [];
+          const liquidacionDefinitiva = calcularLiquidacionSemana(horarios, contrato, lunes, lunes, fin);
+
+          const ajuste = calcularAjusteSemana(liquidacionDefinitiva, {
+            horasExtras: anticipada.horas_extras,
+            valorHoraExtra: contrato.valor_hora_extra
+          });
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: {
+              anticipada,
+              liquidacionDefinitiva,
+              ajuste
+            },
+            message: 'Ajuste pendiente calculado'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en ajuste-pendiente (GET):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
       }

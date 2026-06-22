@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { X, Briefcase } from 'lucide-react';
 import apiService from '../services/api';
+import DiasLaborablesPicker from './DiasLaborablesPicker';
+import {
+  DIAS_LABORABLES_DEFAULT,
+  formatDiasLaborables,
+  parseDiasLaborables,
+  getDiaCierreEfectivo,
+  DIAS_SEMANA_NOMBRES
+} from '../utils/contratoHoras';
 
 function ContratoForm({ contrato, onClose, onSave }) {
   const [formData, setFormData] = useState({
     nombre: '',
     horas_semanales: '40',
     valor_hora_extra: '0',
-    color: '#8b5cf6'
+    color: '#8b5cf6',
+    dias_laborables: DIAS_LABORABLES_DEFAULT,
+    dia_cierre_liquidacion: null
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,7 +33,9 @@ function ContratoForm({ contrato, onClose, onSave }) {
         nombre: contrato.nombre || '',
         horas_semanales: contrato.horas_semanales?.toString() || '40',
         valor_hora_extra: contrato.valor_hora_extra?.toString() || '0',
-        color: contrato.color || '#8b5cf6'
+        color: contrato.color || '#8b5cf6',
+        dias_laborables: contrato.dias_laborables ?? DIAS_LABORABLES_DEFAULT,
+        dia_cierre_liquidacion: contrato.dia_cierre_liquidacion ?? null
       });
     }
   }, [contrato]);
@@ -46,7 +58,9 @@ function ContratoForm({ contrato, onClose, onSave }) {
         nombre: formData.nombre,
         horas_semanales: parseFloat(formData.horas_semanales),
         valor_hora_extra: parseFloat(formData.valor_hora_extra),
-        color: formData.color
+        color: formData.color,
+        dias_laborables: formData.dias_laborables,
+        dia_cierre_liquidacion: formData.dia_cierre_liquidacion
       };
 
       let response;
@@ -131,7 +145,59 @@ function ContratoForm({ contrato, onClose, onSave }) {
               placeholder="40"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Horas que debes cumplir por semana según tu contrato
+              Horas que debes cumplir por semana según tu contrato (se reparten entre los días laborables marcados)
+            </p>
+          </div>
+
+          {/* Días laborables */}
+          <div>
+            <label className="form-label">
+              Días laborables *
+            </label>
+            <DiasLaborablesPicker
+              value={formData.dias_laborables}
+              onChange={(dias_laborables) => {
+                const diaCierre = formData.dia_cierre_liquidacion;
+                const valido = diaCierre !== null && (dias_laborables & (1 << diaCierre));
+                setFormData((prev) => ({
+                  ...prev,
+                  dias_laborables,
+                  dia_cierre_liquidacion: valido ? diaCierre : null
+                }));
+              }}
+              color={formData.color}
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Las horas semanales se reparten entre los días marcados ({formatDiasLaborables(formData.dias_laborables)}).
+              Los días no marcados no cuentan para el cómputo del contrato.
+            </p>
+          </div>
+
+          {/* Día de cierre de liquidación */}
+          <div>
+            <label htmlFor="dia_cierre_liquidacion" className="form-label">
+              Día de cierre de liquidación
+            </label>
+            <select
+              id="dia_cierre_liquidacion"
+              name="dia_cierre_liquidacion"
+              value={formData.dia_cierre_liquidacion ?? getDiaCierreEfectivo(formData.dias_laborables, null)}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                dia_cierre_liquidacion: parseInt(e.target.value, 10)
+              }))}
+              className="input-field"
+            >
+              {parseDiasLaborables(formData.dias_laborables).map((diaIndex) => (
+                <option key={diaIndex} value={diaIndex}>
+                  {DIAS_SEMANA_NOMBRES[diaIndex]}
+                  {diaIndex === getDiaCierreEfectivo(formData.dias_laborables, null) ? ' (por defecto)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Día habitual de cierre semanal para calcular extras definitivas. Si te pagan antes (ej. viernes),
+              el sistema marcará la liquidación como anticipada y calculará el ajuste al cerrar la semana.
             </p>
           </div>
 

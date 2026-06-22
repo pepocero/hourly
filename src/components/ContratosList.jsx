@@ -1,5 +1,6 @@
 import React from 'react';
 import { Edit, Trash2, Check } from 'lucide-react';
+import { formatDiasLaborables } from '../utils/contratoHoras';
 
 function ContratosList({ contratos, contratoSeleccionado, onSelect, onEdit, onDelete }) {
   if (contratos.length === 0) {
@@ -45,7 +46,7 @@ function ContratosList({ contratos, contratoSeleccionado, onSelect, onEdit, onDe
               <div className="mt-1 flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-xs sm:text-sm text-gray-600 space-y-1 sm:space-y-0">
                 <span className="flex items-center">
                   <span className="font-medium">{contrato.horas_semanales}h</span>
-                  <span className="ml-1">/ semana</span>
+                  <span className="ml-1">/ semana ({formatDiasLaborables(contrato.dias_laborables)})</span>
                 </span>
                 <span className="hidden sm:inline text-gray-300">|</span>
                 <span className="flex items-center">

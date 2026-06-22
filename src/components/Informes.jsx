@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown } from 'lucide-react';
 import apiService from '../services/api';
+import { calcularHorasExtrasPorSemanas, formatDiasLaborables } from '../utils/contratoHoras';
 
 function Informes() {
   const [tipoInforme, setTipoInforme] = useState('detallado');
@@ -182,6 +183,8 @@ function Informes() {
           nombre: contratoNombre,
           horasSemanales: horario.horas_semanales || 0,
           valorHoraExtra: horario.valor_hora_extra || 0,
+          diasLaborables: horario.dias_laborables,
+          diaCierreLiquidacion: horario.dia_cierre_liquidacion,
           totalMinutos: 0,
           registros: []
         };
@@ -191,17 +194,26 @@ function Informes() {
       subtotales[contratoId].registros.push(horario);
     });
 
-    // Calcular horas extras por contrato
     Object.keys(subtotales).forEach(contratoId => {
       const subtotal = subtotales[contratoId];
+      const resultado = calcularHorasExtrasPorSemanas(
+        subtotal.registros,
+        {
+          horas_semanales: subtotal.horasSemanales,
+          valor_hora_extra: subtotal.valorHoraExtra,
+          dias_laborables: subtotal.diasLaborables,
+          dia_cierre_liquidacion: subtotal.diaCierreLiquidacion
+        },
+        fechaInicio,
+        fechaFin
+      );
+
       const totalHoras = subtotal.totalMinutos / 60;
-      const horasNormales = Math.min(totalHoras, subtotal.horasSemanales);
-      const horasExtras = Math.max(0, totalHoras - subtotal.horasSemanales);
-      
+
       subtotal.totalHoras = totalHoras;
-      subtotal.horasNormales = horasNormales;
-      subtotal.horasExtras = horasExtras;
-      subtotal.totalExtras = horasExtras * subtotal.valorHoraExtra;
+      subtotal.horasNormales = totalHoras - resultado.horasExtras;
+      subtotal.horasExtras = resultado.horasExtras;
+      subtotal.totalExtras = resultado.importe;
     });
     
     return subtotales;
@@ -766,7 +778,7 @@ function Informes() {
                   <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                     <p className="text-xs text-gray-600 mb-1">Horas Normales</p>
                     <p className="text-lg font-bold text-green-600">{subtotal.horasNormales.toFixed(2)}h</p>
-                    <p className="text-xs text-gray-500">de {subtotal.horasSemanales}h</p>
+                    <p className="text-xs text-gray-500">de {subtotal.horasSemanales}h ({formatDiasLaborables(subtotal.diasLaborables)})</p>
                   </div>
                   <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
                     <p className="text-xs text-gray-600 mb-1">Horas Extras</p>

@@ -143,6 +143,8 @@ function Documentacion() {
                   <li>En la pestaña <strong>"Contratos"</strong>, haz clic en <strong>"Nuevo Contrato"</strong></li>
                   <li>Asigna un nombre (Ej: "Empresa ABC - Soporte Técnico")</li>
                   <li>Define las <strong>horas semanales</strong> que debes cumplir (Ej: 40 horas)</li>
+                  <li>Marca los <strong>días laborables</strong> del contrato (L M X J V S D, estilo selector de alarmas)</li>
+                  <li>Elige el <strong>día de cierre de liquidación</strong> (día habitual de pago de extras, ej. Sábado)</li>
                   <li>Establece el <strong>valor por hora extra</strong> (Ej: $25 por hora)</li>
                   <li>Guarda el contrato</li>
                 </ol>
@@ -169,16 +171,34 @@ function Documentacion() {
                   Cálculo de Horas Extras
                 </h3>
                 <p className="text-sm mb-2">
-                  El sistema calcula automáticamente tus horas extras de la semana actual (lunes a domingo):
+                  El sistema calcula automáticamente tus horas extras semana a semana (lunes a domingo), prorrateando las horas semanales según los días laborables marcados:
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li><strong>Horas Normales</strong>: Hasta el límite de tu contrato (Ej: 40h semanales)</li>
-                  <li><strong>Horas Extras</strong>: Todo lo que excede ese límite</li>
+                  <li><strong>Días laborables</strong>: Solo los días marcados en el contrato cuentan para el cómputo (Ej: L–V)</li>
+                  <li><strong>Horas Normales</strong>: Hasta el límite prorrateado de la semana según días laborables</li>
+                  <li><strong>Horas Extras</strong>: Todo lo que excede ese límite (incluye horas en días no laborables)</li>
                   <li><strong>Total a Cobrar</strong>: Horas extras × Valor hora extra</li>
                 </ul>
                 <p className="text-sm mt-2 font-medium text-orange-800">
-                  Ejemplo: Si tu contrato es de 40h semanales y trabajaste 45h, tienes 5 horas extras.
-                  Si cada hora extra vale $25, cobrarás $125 adicionales.
+                  Ejemplo: Contrato de 40h semanales con días L–V. Si trabajas 40h de lunes a viernes y 4h el sábado, tienes 4 horas extras.
+                  Si cada hora extra vale $25, cobrarás $100 adicionales.
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Liquidaciones y pago anticipado
+                </h3>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li><strong>Liquidación definitiva</strong>: cuando el periodo incluye el día de cierre (ej. L–S con cierre sábado)</li>
+                  <li><strong>Liquidación anticipada</strong>: si te pagan antes del cierre (ej. solo L–V), las extras son provisionales</li>
+                  <li>Usa <strong>Registrar liquidación</strong> para guardar el pago y evitar descuadres</li>
+                  <li>Al cerrar la semana, el sistema calcula el <strong>ajuste</strong> (diferencia entre pago anticipado y definitivo)</li>
+                </ul>
+                <p className="text-sm mt-2 font-medium text-yellow-800">
+                  Ejemplo: contrato 18h L–S. Pagas el viernes con 18h trabajadas → 3h extras provisionales.
+                  Trabajas 2h el sábado → 2h extras definitivas → ajuste de −1h.
                 </p>
               </div>
             </div>
@@ -283,7 +303,7 @@ function Documentacion() {
 
               <div>
                 <h3 className="font-semibold text-gray-900 mb-1">📊 Resumen Semanal en Contratos</h3>
-                <p>El módulo de Contratos calcula automáticamente tu semana laboral (lunes a domingo) y separa horas normales de horas extras.</p>
+                <p>El módulo de Contratos calcula automáticamente tu semana laboral (lunes a domingo), prorratea las horas esperadas según los días laborables del contrato y separa horas normales de horas extras.</p>
               </div>
             </div>
           </section>
@@ -303,7 +323,7 @@ function Documentacion() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-1">¿Cómo funcionan las horas extras en Contratos?</h3>
                 <p className="text-sm text-gray-700">
-                  El sistema suma todas las horas trabajadas en la semana. Las que excedan las horas semanales del contrato se consideran extras y se multiplican por el valor de hora extra configurado.
+                  El sistema agrupa las horas por semana (lunes a domingo). En cada semana, calcula las horas esperadas prorrateando las horas semanales del contrato según los días laborables marcados. Las horas que excedan ese límite se consideran extras y se multiplican por el valor de hora extra configurado.
                 </p>
               </div>
 

@@ -5,6 +5,14 @@ import ContratoForm from './ContratoForm';
 import ContratosList from './ContratosList';
 import HorarioContratoForm from './HorarioContratoForm';
 import HorariosContratoList from './HorariosContratoList';
+import {
+  calcularHorasEsperadasSemana,
+  formatDiasLaborables,
+  getMondayOfWeek,
+  getFechaDiaCierreSemana,
+  esLiquidacionDefinitiva,
+  DIAS_LABORABLES_DEFAULT
+} from '../utils/contratoHoras';
 
 function Contratos() {
   const [contratos, setContratos] = useState([]);
@@ -46,11 +54,17 @@ function Contratos() {
 
   useEffect(() => {
     if (contratoSeleccionado) {
-      loadResumenSemanal();
-      // Inicializar filtro con el contrato seleccionado
+      const lunes = getMondayOfWeek(new Date().toISOString().split('T')[0]);
+      const fin = getFechaDiaCierreSemana(
+        lunes,
+        contratoSeleccionado.dias_laborables ?? DIAS_LABORABLES_DEFAULT,
+        contratoSeleccionado.dia_cierre_liquidacion
+      );
+      setFechasSemana({ inicio: lunes, fin });
+      loadResumenSemanal(lunes, fin);
       setContratoFiltro(contratoSeleccionado.id.toString());
     }
-  }, [contratoSeleccionado, fechasSemana]);
+  }, [contratoSeleccionado]);
 
   const loadContratos = async () => {
     try {
@@ -70,14 +84,14 @@ function Contratos() {
     }
   };
 
-  const loadResumenSemanal = async () => {
+  const loadResumenSemanal = async (inicio = fechasSemana.inicio, fin = fechasSemana.fin) => {
     if (!contratoSeleccionado) return;
     
     try {
       const response = await apiService.getResumenSemanalContrato(
         contratoSeleccionado.id,
-        fechasSemana.inicio,
-        fechasSemana.fin
+        inicio,
+        fin
       );
       if (response.success) {
         setResumenSemanal(response.data);
@@ -129,24 +143,36 @@ function Contratos() {
 
   // Calcular horas extras
   const calcularHorasExtras = () => {
-    if (!resumenSemanal || !contratoSeleccionado) return { normal: 0, extras: 0, totalExtras: 0 };
-    
-    const totalMinutos = resumenSemanal.total_minutos || 0;
-    const totalHoras = totalMinutos / 60;
-    const horasContrato = contratoSeleccionado.horas_semanales || 0;
-    
-    const horasNormales = Math.min(totalHoras, horasContrato);
-    const horasExtras = Math.max(0, totalHoras - horasContrato);
+    if (!resumenSemanal || !contratoSeleccionado) return { normal: 0, extras: 0, totalExtras: 0, horasEsperadas: 0 };
+
+    const totalHoras = (resumenSemanal.total_minutos || 0) / 60;
+    const horasEsperadas = calcularHorasEsperadasSemana(
+      contratoSeleccionado.horas_semanales || 0,
+      contratoSeleccionado.dias_laborables ?? DIAS_LABORABLES_DEFAULT,
+      getMondayOfWeek(fechasSemana.inicio),
+      fechasSemana.inicio,
+      fechasSemana.fin
+    );
+
+    const horasNormales = Math.min(totalHoras, horasEsperadas);
+    const horasExtras = Math.max(0, totalHoras - horasEsperadas);
     const totalExtras = horasExtras * (contratoSeleccionado.valor_hora_extra || 0);
-    
+
     return {
       normal: horasNormales.toFixed(2),
       extras: horasExtras.toFixed(2),
-      totalExtras: totalExtras.toFixed(2)
+      totalExtras: totalExtras.toFixed(2),
+      horasEsperadas: horasEsperadas.toFixed(2)
     };
   };
 
-  const { normal, extras, totalExtras } = calcularHorasExtras();
+  const { normal, extras, totalExtras, horasEsperadas } = calcularHorasExtras();
+  const diasLaborablesLabel = formatDiasLaborables(contratoSeleccionado?.dias_laborables);
+  const semanaAbierta = contratoSeleccionado && !esLiquidacionDefinitiva(
+    new Date().toISOString().split('T')[0],
+    fechasSemana.inicio,
+    contratoSeleccionado
+  );
 
   if (loading) {
     return (
@@ -203,6 +229,11 @@ function Contratos() {
                 <Calendar className="h-5 w-5" style={{ color: contratoSeleccionado.color }} />
                 <span>Resumen Semanal - {contratoSeleccionado.nombre}</span>
               </h4>
+              {semanaAbierta && (
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                  Semana abierta
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -213,7 +244,7 @@ function Contratos() {
                   <p className="text-xs sm:text-sm text-gray-600">Horas Normales</p>
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900">{normal}h</p>
-                <p className="text-xs text-gray-500 mt-1">de {contratoSeleccionado.horas_semanales}h semanales</p>
+                <p className="text-xs text-gray-500 mt-1">de {horasEsperadas}h esperadas ({diasLaborablesLabel}, cierre {fechasSemana.fin})</p>
               </div>
 
               {/* Horas extras */}

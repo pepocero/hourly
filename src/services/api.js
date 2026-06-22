@@ -283,6 +283,33 @@ class ApiService {
     const endpoint = `/api/horarios-contrato/resumen?${params.toString()}`;
     return this.request(endpoint);
   }
+
+  // ========== LIQUIDACIONES DE CONTRATO ==========
+
+  async getLiquidacionesContrato(contratoId = null, semanaLunes = null) {
+    const params = new URLSearchParams();
+    if (contratoId) params.append('contrato_id', contratoId);
+    if (semanaLunes) params.append('semana_lunes', semanaLunes);
+
+    const endpoint = `/api/liquidaciones-contrato${params.toString() ? `?${params.toString()}` : ''}`;
+    return this.request(endpoint);
+  }
+
+  async createLiquidacionContrato(data) {
+    return this.request('/api/liquidaciones-contrato', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAjustePendiente(contratoId, semanaLunes, fechaFin = null) {
+    const params = new URLSearchParams();
+    params.append('contrato_id', contratoId);
+    params.append('semana_lunes', semanaLunes);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    return this.request(`/api/liquidaciones-contrato/ajuste-pendiente?${params.toString()}`);
+  }
 }
 
 export default new ApiService();

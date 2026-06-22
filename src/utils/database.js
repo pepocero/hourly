@@ -162,21 +162,21 @@ export class DatabaseService {
     return await stmt.bind(contratoId, userId).first();
   }
 
-  async createContrato(userId, nombre, horasSemanales, valorHoraExtra, color) {
+  async createContrato(userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables = 31, diaCierreLiquidacion = null) {
     const stmt = this.db.prepare(`
-      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra, color)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra, color, dias_laborables, dia_cierre_liquidacion)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra, color).run();
+    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables, diaCierreLiquidacion).run();
   }
 
-  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra, color) {
+  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables = 31, diaCierreLiquidacion = null) {
     const stmt = this.db.prepare(`
       UPDATE contratos 
-      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, color = ?, updated_at = CURRENT_TIMESTAMP
+      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, color = ?, dias_laborables = ?, dia_cierre_liquidacion = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
-    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, color, contratoId, userId).run();
+    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, color, diasLaborables, diaCierreLiquidacion, contratoId, userId).run();
   }
 
   async deleteContrato(contratoId, userId) {
@@ -192,7 +192,7 @@ export class DatabaseService {
   
   async getHorariosContrato(userId, contratoId = null, fechaInicio = null, fechaFin = null) {
     let query = `
-      SELECT hc.*, c.nombre as contrato_nombre, c.horas_semanales, c.valor_hora_extra
+      SELECT hc.*, c.nombre as contrato_nombre, c.horas_semanales, c.valor_hora_extra, c.dias_laborables, c.dia_cierre_liquidacion
       FROM horarios_contrato hc
       LEFT JOIN contratos c ON hc.contrato_id = c.id
       WHERE hc.user_id = ?
@@ -252,5 +252,69 @@ export class DatabaseService {
       WHERE user_id = ? AND contrato_id = ? AND fecha >= ? AND fecha <= ?
     `);
     return await stmt.bind(userId, contratoId, fechaInicio, fechaFin).first();
+  }
+
+  // ========== LIQUIDACIONES DE CONTRATO ==========
+
+  async getLiquidacionesContrato(userId, contratoId = null, semanaLunes = null) {
+    let query = `
+      SELECT l.*, c.nombre as contrato_nombre
+      FROM liquidaciones_contrato l
+      LEFT JOIN contratos c ON l.contrato_id = c.id
+      WHERE l.user_id = ?
+    `;
+    const params = [userId];
+
+    if (contratoId) {
+      query += ` AND l.contrato_id = ?`;
+      params.push(contratoId);
+    }
+
+    if (semanaLunes) {
+      query += ` AND l.semana_lunes = ?`;
+      params.push(semanaLunes);
+    }
+
+    query += ` ORDER BY l.semana_lunes DESC, l.created_at DESC`;
+
+    const stmt = this.db.prepare(query);
+    return await stmt.bind(...params).all();
+  }
+
+  async getLiquidacionByTipo(userId, contratoId, semanaLunes, tipo) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM liquidaciones_contrato
+      WHERE user_id = ? AND contrato_id = ? AND semana_lunes = ? AND tipo = ?
+    `);
+    return await stmt.bind(userId, contratoId, semanaLunes, tipo).first();
+  }
+
+  async createLiquidacionContrato(userId, data) {
+    const stmt = this.db.prepare(`
+      INSERT INTO liquidaciones_contrato (
+        user_id, contrato_id, semana_lunes, fecha_inicio, fecha_cierre,
+        horas_trabajadas, horas_esperadas, horas_extras, importe, tipo, notas
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return await stmt.bind(
+      userId,
+      data.contrato_id,
+      data.semana_lunes,
+      data.fecha_inicio,
+      data.fecha_cierre,
+      data.horas_trabajadas,
+      data.horas_esperadas,
+      data.horas_extras,
+      data.importe,
+      data.tipo,
+      data.notas || null
+    ).run();
+  }
+
+  async deleteLiquidacionContrato(liquidacionId, userId) {
+    const stmt = this.db.prepare(`
+      DELETE FROM liquidaciones_contrato WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(liquidacionId, userId).run();
   }
 }

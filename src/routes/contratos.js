@@ -36,7 +36,10 @@ export function createContratosRoutes(db, jwtSecret) {
         const {
           nombre,
           horas_semanales,
-          valor_hora_extra
+          valor_hora_extra,
+          color,
+          dias_laborables,
+          dia_cierre_liquidacion
         } = await request.json();
 
         // Validaciones básicas
@@ -48,11 +51,26 @@ export function createContratosRoutes(db, jwtSecret) {
           return createErrorResponse('Las horas semanales deben ser mayor a 0');
         }
 
+        const diasLaborables = parseInt(dias_laborables, 10);
+        if (isNaN(diasLaborables) || diasLaborables < 1 || diasLaborables > 127) {
+          return createErrorResponse('Debe seleccionar al menos un día laborable');
+        }
+
+        let diaCierre = dia_cierre_liquidacion !== null && dia_cierre_liquidacion !== undefined && dia_cierre_liquidacion !== ''
+          ? parseInt(dia_cierre_liquidacion, 10)
+          : null;
+        if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6 || !(diasLaborables & (1 << diaCierre)))) {
+          diaCierre = null;
+        }
+
         const result = await dbService.createContrato(
           authResult.userId,
           nombre,
           horas_semanales,
-          valor_hora_extra || 0
+          valor_hora_extra || 0,
+          color || '#8b5cf6',
+          diasLaborables,
+          diaCierre
         );
 
         if (result.success) {
@@ -80,15 +98,33 @@ export function createContratosRoutes(db, jwtSecret) {
         const {
           nombre,
           horas_semanales,
-          valor_hora_extra
+          valor_hora_extra,
+          color,
+          dias_laborables,
+          dia_cierre_liquidacion
         } = await request.json();
+
+        const diasLaborables = parseInt(dias_laborables, 10);
+        if (isNaN(diasLaborables) || diasLaborables < 1 || diasLaborables > 127) {
+          return createErrorResponse('Debe seleccionar al menos un día laborable');
+        }
+
+        let diaCierre = dia_cierre_liquidacion !== null && dia_cierre_liquidacion !== undefined && dia_cierre_liquidacion !== ''
+          ? parseInt(dia_cierre_liquidacion, 10)
+          : null;
+        if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6 || !(diasLaborables & (1 << diaCierre)))) {
+          diaCierre = null;
+        }
 
         const result = await dbService.updateContrato(
           contratoId,
           authResult.userId,
           nombre,
           horas_semanales,
-          valor_hora_extra
+          valor_hora_extra,
+          color || '#8b5cf6',
+          diasLaborables,
+          diaCierre
         );
 
         if (result.success) {

@@ -1,14 +1,30 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
-import { Edit, Trash2, Calendar, Clock, DollarSign } from 'lucide-react';
+import { Edit, Trash2, Calendar, Clock, DollarSign, AlertCircle, CheckCircle2, FileCheck } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import {
+  calcularResumenHorasExtrasMultiples,
+  formatDiasLaborables,
+  getMondayOfWeek
+} from '../utils/contratoHoras';
 
 const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, color, contratos, onEdit, onDataChange }, ref) => {
   const [horarios, setHorarios] = useState([]);
+  const [liquidaciones, setLiquidaciones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [registrandoLiquidacion, setRegistrandoLiquidacion] = useState(false);
   const [error, setError] = useState('');
+  const [liquidacionMsg, setLiquidacionMsg] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [horarioToDelete, setHorarioToDelete] = useState(null);
+
+  const contratosMap = useMemo(() => {
+    if (!contratos) return {};
+    return contratos.reduce((acc, c) => {
+      acc[c.id] = c;
+      return acc;
+    }, {});
+  }, [contratos]);
 
   useEffect(() => {
     if (contratoId !== undefined) {
@@ -16,9 +32,17 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     }
   }, [contratoId, fechaInicio, fechaFin]);
 
-  // Exponer la función loadHorarios para que pueda ser llamada desde el componente padre
+  useEffect(() => {
+    if (fechaInicio && fechaFin) {
+      loadLiquidaciones();
+    } else {
+      setLiquidaciones([]);
+    }
+  }, [contratoId, fechaInicio, fechaFin, horarios.length]);
+
   useImperativeHandle(ref, () => ({
-    loadHorarios
+    loadHorarios,
+    loadLiquidaciones
   }));
 
   const loadHorarios = async () => {
@@ -33,6 +57,61 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadLiquidaciones = async () => {
+    try {
+      const semanas = [...new Set(horarios.map((h) => getMondayOfWeek(h.fecha)))];
+      const allLiquidaciones = [];
+
+      for (const semana of semanas) {
+        const response = await apiService.getLiquidacionesContrato(contratoId || null, semana);
+        if (response.success && response.data) {
+          allLiquidaciones.push(...response.data);
+        }
+      }
+
+      if (semanas.length === 0 && contratoId) {
+        const response = await apiService.getLiquidacionesContrato(contratoId, null);
+        if (response.success && response.data) {
+          allLiquidaciones.push(...response.data);
+        }
+      }
+
+      setLiquidaciones(allLiquidaciones);
+    } catch (error) {
+      console.error('Error cargando liquidaciones:', error);
+    }
+  };
+
+  const handleRegistrarLiquidacion = async () => {
+    if (!fechaInicio || !fechaFin || !contratoId) {
+      alert('Selecciona un contrato y un rango de fechas para registrar la liquidación');
+      return;
+    }
+
+    setRegistrandoLiquidacion(true);
+    setLiquidacionMsg('');
+
+    try {
+      const response = await apiService.createLiquidacionContrato({
+        contrato_id: parseInt(contratoId),
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin
+      });
+
+      if (response.success) {
+        setLiquidacionMsg('Liquidación registrada correctamente');
+        await loadLiquidaciones();
+        if (onDataChange) onDataChange();
+      } else {
+        alert(response.error || 'Error al registrar liquidación');
+      }
+    } catch (error) {
+      alert(error.message || 'Error al registrar liquidación');
+    } finally {
+      setRegistrandoLiquidacion(false);
     }
   };
 
@@ -88,92 +167,22 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     });
   };
 
-  // Obtener el lunes de la semana de una fecha
-  const getMondayOfWeek = (dateString) => {
-    const date = new Date(dateString + 'T00:00:00');
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Ajustar al lunes
-    const monday = new Date(date.getFullYear(), date.getMonth(), diff);
-    return monday.toISOString().split('T')[0];
-  };
-
   // Calcular horas extras del periodo seleccionado
   const calcularHorasExtras = useMemo(() => {
     if (!fechaInicio || !fechaFin || horarios.length === 0) {
       return null;
     }
 
-    // Agrupar horarios por contrato
-    const horariosPorContrato = {};
-    horarios.forEach(horario => {
-      const contratoId = horario.contrato_id;
-      if (!horariosPorContrato[contratoId]) {
-        horariosPorContrato[contratoId] = {
-          contratoId,
-          contratoNombre: horario.contrato_nombre,
-          horasSemanales: horario.horas_semanales || 0,
-          valorHoraExtra: horario.valor_hora_extra || 0,
-          horarios: []
-        };
-      }
-      horariosPorContrato[contratoId].horarios.push(horario);
-    });
-
-    let totalHorasExtras = 0;
-    let totalImporte = 0;
-    let totalHorasTrabajadas = 0; // Total de horas trabajadas en el periodo
-    const detallesPorContrato = [];
-
-    // Calcular horas extras por contrato
-    Object.values(horariosPorContrato).forEach(contratoData => {
-      // Calcular total de horas trabajadas del contrato en el periodo
-      const totalMinutosContrato = contratoData.horarios.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
-      const totalHorasContrato = totalMinutosContrato / 60;
-      totalHorasTrabajadas += totalHorasContrato;
-
-      // Agrupar horarios por semana
-      const horariosPorSemana = {};
-      contratoData.horarios.forEach(horario => {
-        const semanaLunes = getMondayOfWeek(horario.fecha);
-        if (!horariosPorSemana[semanaLunes]) {
-          horariosPorSemana[semanaLunes] = [];
-        }
-        horariosPorSemana[semanaLunes].push(horario);
-      });
-
-      // Calcular horas extras por semana
-      let horasExtrasContrato = 0;
-      Object.values(horariosPorSemana).forEach(horariosSemana => {
-        const totalMinutosSemana = horariosSemana.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
-        const totalHorasSemana = totalMinutosSemana / 60;
-        const horasExtrasSemana = Math.max(0, totalHorasSemana - contratoData.horasSemanales);
-        horasExtrasContrato += horasExtrasSemana;
-      });
-
-      const importeContrato = horasExtrasContrato * contratoData.valorHoraExtra;
-      totalHorasExtras += horasExtrasContrato;
-      totalImporte += importeContrato;
-
-      // Siempre agregar el detalle del contrato para mostrar el resumen completo
-      detallesPorContrato.push({
-        contratoNombre: contratoData.contratoNombre,
-        horasExtras: horasExtrasContrato,
-        horasTrabajadas: totalHorasContrato,
-        importe: importeContrato,
-        valorHoraExtra: contratoData.valorHoraExtra,
-        horasSemanales: contratoData.horasSemanales
-      });
-    });
-
-    return {
-      totalHorasExtras,
-      totalHorasTrabajadas,
-      totalImporte,
-      detallesPorContrato
-    };
-  }, [horarios, fechaInicio, fechaFin]);
+    return calcularResumenHorasExtrasMultiples(horarios, fechaInicio, fechaFin, contratosMap);
+  }, [horarios, fechaInicio, fechaFin, contratosMap]);
 
   const resumenHorasExtras = calcularHorasExtras;
+  const esAnticipada = resumenHorasExtras?.detallesPorContrato?.some(
+    (d) => d.tipoLiquidacion === 'anticipada' || d.semanas?.some((s) => !s.esDefinitiva)
+  );
+  const esDefinitiva = resumenHorasExtras?.detallesPorContrato?.some(
+    (d) => d.tipoLiquidacion === 'definitiva' || d.semanas?.every((s) => s.esDefinitiva)
+  );
 
   if (loading) {
     return (
@@ -309,6 +318,35 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
             <Clock className="h-5 w-5 text-orange-600" />
             <span>Resumen de Horas Extras</span>
           </h5>
+
+          {esAnticipada && !esDefinitiva && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start space-x-2">
+              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-900">
+                <p className="font-medium">Liquidación anticipada (provisional)</p>
+                <p className="text-xs mt-1">
+                  El periodo no incluye el día de cierre de la semana. Las extras mostradas son provisionales.
+                  Al cerrar la semana se calculará el ajuste definitivo.
+                </p>
+                {resumenHorasExtras.detallesPorContrato.flatMap((d) => d.semanas || [])
+                  .filter((s) => s.diasPendientes?.length > 0)
+                  .map((s, i) => (
+                    <p key={i} className="text-xs mt-1">
+                      Días pendientes: {s.diasPendientes.join(', ')} (cierre: {s.diaCierreLabel})
+                    </p>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {esDefinitiva && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-300 rounded-lg flex items-start space-x-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-green-900">
+                Liquidación definitiva: el periodo incluye el día de cierre semanal del contrato.
+              </p>
+            </div>
+          )}
           
           {resumenHorasExtras.detallesPorContrato.length > 0 ? (
             <>
@@ -322,7 +360,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                         <div>
                           <p className="text-sm font-medium text-gray-900">{detalle.contratoNombre}</p>
                           <p className="text-xs text-gray-600">
-                            Contrato: {detalle.horasSemanales}h semanales
+                            Contrato: {detalle.horasSemanales}h semanales ({formatDiasLaborables(detalle.diasLaborables)})
                             {detalle.valorHoraExtra > 0 && (
                               <span> • Valor hora extra: ${detalle.valorHoraExtra}</span>
                             )}
@@ -364,7 +402,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                       {resumenHorasExtras.detallesPorContrato[0].contratoNombre}
                     </p>
                     <p className="text-xs text-gray-600">
-                      Contrato: {resumenHorasExtras.detallesPorContrato[0].horasSemanales}h semanales
+                      Contrato: {resumenHorasExtras.detallesPorContrato[0].horasSemanales}h semanales ({formatDiasLaborables(resumenHorasExtras.detallesPorContrato[0].diasLaborables)})
                       {resumenHorasExtras.detallesPorContrato[0].valorHoraExtra > 0 && (
                         <span> • Valor hora extra: ${resumenHorasExtras.detallesPorContrato[0].valorHoraExtra}</span>
                       )}
@@ -412,13 +450,54 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                   )}
                 </div>
                 
-                <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                   <p className="text-xs text-gray-600">
                     Periodo: {formatDate(fechaInicio)} - {formatDate(fechaFin)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Las horas extras se calculan semana por semana según el tipo de contrato
+                  <p className="text-xs text-gray-500">
+                    Las horas extras se calculan semana por semana según los días laborables y el día de cierre del contrato
                   </p>
+
+                  {contratoId && (
+                    <button
+                      type="button"
+                      onClick={handleRegistrarLiquidacion}
+                      disabled={registrandoLiquidacion}
+                      className="btn-primary flex items-center justify-center space-x-2 text-sm w-full sm:w-auto"
+                    >
+                      <FileCheck className="h-4 w-4" />
+                      <span>{registrandoLiquidacion ? 'Registrando...' : 'Registrar liquidación'}</span>
+                    </button>
+                  )}
+
+                  {liquidacionMsg && (
+                    <p className="text-xs text-green-700 font-medium">{liquidacionMsg}</p>
+                  )}
+
+                  {liquidaciones.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-gray-700 mb-2">Liquidaciones registradas:</p>
+                      <div className="space-y-2">
+                        {liquidaciones.map((liq) => (
+                          <div key={liq.id} className="bg-gray-50 rounded p-2 border border-gray-200 text-xs">
+                            <div className="flex justify-between items-center">
+                              <span className={`font-medium capitalize ${
+                                liq.tipo === 'anticipada' ? 'text-amber-700' :
+                                liq.tipo === 'ajuste' ? 'text-purple-700' : 'text-green-700'
+                              }`}>
+                                {liq.tipo}
+                              </span>
+                              <span className="text-gray-500">Sem. {liq.semana_lunes}</span>
+                            </div>
+                            <p className="text-gray-600 mt-1">
+                              {parseFloat(liq.horas_extras).toFixed(2)}h extras
+                              {parseFloat(liq.importe) !== 0 && ` • $${parseFloat(liq.importe).toFixed(2)}`}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
