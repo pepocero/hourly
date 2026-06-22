@@ -156,15 +156,7 @@ function ContratoForm({ contrato, onClose, onSave }) {
             </label>
             <DiasLaborablesPicker
               value={formData.dias_laborables}
-              onChange={(dias_laborables) => {
-                const diaCierre = formData.dia_cierre_liquidacion;
-                const valido = diaCierre !== null && (dias_laborables & (1 << diaCierre));
-                setFormData((prev) => ({
-                  ...prev,
-                  dias_laborables,
-                  dia_cierre_liquidacion: valido ? diaCierre : null
-                }));
-              }}
+              onChange={(dias_laborables) => setFormData((prev) => ({ ...prev, dias_laborables }))}
               color={formData.color}
             />
             <p className="text-xs text-gray-500 mt-2">
@@ -188,16 +180,18 @@ function ContratoForm({ contrato, onClose, onSave }) {
               }))}
               className="input-field"
             >
-              {parseDiasLaborables(formData.dias_laborables).map((diaIndex) => (
+              {[0, 1, 2, 3, 4, 5, 6].map((diaIndex) => (
                 <option key={diaIndex} value={diaIndex}>
                   {DIAS_SEMANA_NOMBRES[diaIndex]}
-                  {diaIndex === getDiaCierreEfectivo(formData.dias_laborables, null) ? ' (por defecto)' : ''}
+                  {diaIndex === getDiaCierreEfectivo(formData.dias_laborables, null) && formData.dia_cierre_liquidacion === null
+                    ? ' (por defecto)'
+                    : ''}
                 </option>
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              Día habitual de cierre semanal para calcular extras definitivas. Si te pagan antes (ej. viernes),
-              el sistema marcará la liquidación como anticipada y calculará el ajuste al cerrar la semana.
+              Día en que cierras la semana para calcular extras definitivas (puede ser sábado o domingo aunque no sea día laborable).
+              Si te pagan antes, el sistema marcará la liquidación como anticipada y calculará el ajuste al cerrar.
             </p>
           </div>
 

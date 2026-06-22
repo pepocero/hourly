@@ -59,7 +59,7 @@ export function createContratosRoutes(db, jwtSecret) {
         let diaCierre = dia_cierre_liquidacion !== null && dia_cierre_liquidacion !== undefined && dia_cierre_liquidacion !== ''
           ? parseInt(dia_cierre_liquidacion, 10)
           : null;
-        if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6 || !(diasLaborables & (1 << diaCierre)))) {
+        if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6)) {
           diaCierre = null;
         }
 
@@ -112,7 +112,7 @@ export function createContratosRoutes(db, jwtSecret) {
         let diaCierre = dia_cierre_liquidacion !== null && dia_cierre_liquidacion !== undefined && dia_cierre_liquidacion !== ''
           ? parseInt(dia_cierre_liquidacion, 10)
           : null;
-        if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6 || !(diasLaborables & (1 << diaCierre)))) {
+        if (diaCierre !== null && (isNaN(diaCierre) || diaCierre < 0 || diaCierre > 6)) {
           diaCierre = null;
         }
 

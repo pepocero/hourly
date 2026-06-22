@@ -33,19 +33,17 @@ export function contarDiasLaborablesConfig(bitmask) {
 }
 
 export function getDiaCierreEfectivo(diasLaborables, diaCierreLiquidacion) {
-  const dias = parseDiasLaborables(diasLaborables);
-  if (dias.length === 0) return 4;
-
   if (
     diaCierreLiquidacion !== null &&
     diaCierreLiquidacion !== undefined &&
     diaCierreLiquidacion >= 0 &&
-    diaCierreLiquidacion <= 6 &&
-    dias.includes(diaCierreLiquidacion)
+    diaCierreLiquidacion <= 6
   ) {
     return diaCierreLiquidacion;
   }
 
+  const dias = parseDiasLaborables(diasLaborables);
+  if (dias.length === 0) return 4;
   return dias[dias.length - 1];
 }
 
@@ -177,12 +175,20 @@ export function calcularLiquidacionSemana(horariosSemana, contrato, lunesSemana,
     diaCierreLabel: DIAS_SEMANA_LABELS[diaCierreIndex],
     diasPendientes: esDefinitiva
       ? []
-      : parseDiasLaborables(c.dias_laborables)
-          .filter((d) => {
-            const fechaDia = pickerIndexToDate(lunesSemana, d);
-            return fechaDia > fechaFin && fechaDia <= fechaCierreSemana;
-          })
-          .map((d) => DIAS_SEMANA_LABELS[d]),
+      : (() => {
+          const cierreIndex = getDiaCierreEfectivo(c.dias_laborables, c.dia_cierre_liquidacion);
+          const pending = [];
+          for (let i = 0; i < 7; i++) {
+            const fechaDia = pickerIndexToDate(lunesSemana, i);
+            if (fechaDia > fechaFin && fechaDia <= fechaCierreSemana) {
+              const esLaborable = (c.dias_laborables & (1 << i)) !== 0;
+              if (esLaborable || i === cierreIndex) {
+                pending.push(DIAS_SEMANA_LABELS[i]);
+              }
+            }
+          }
+          return pending;
+        })(),
     horasSemanales: c.horas_semanales,
     valorHoraExtra: c.valor_hora_extra,
     diasLaborables: c.dias_laborables
