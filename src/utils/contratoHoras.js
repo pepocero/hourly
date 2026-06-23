@@ -5,16 +5,28 @@ export const DIAS_SEMANA_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 export const DIAS_SEMANA_NOMBRES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 export const DIAS_LABORABLES_DEFAULT = 31; // L-V
 
+/** Formatea Date a YYYY-MM-DD en hora local (evita desfase UTC de toISOString). */
+export function formatDateLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function parseDateLocal(dateString) {
+  return new Date(dateString + 'T00:00:00');
+}
+
 export function jsDayToBitmask(jsDay) {
   if (jsDay === 0) return 64;
   return 1 << (jsDay - 1);
 }
 
 export function pickerIndexToDate(lunesSemana, pickerIndex) {
-  const monday = new Date(lunesSemana + 'T00:00:00');
+  const monday = parseDateLocal(lunesSemana);
   const date = new Date(monday);
   date.setDate(monday.getDate() + pickerIndex);
-  return date.toISOString().split('T')[0];
+  return formatDateLocal(date);
 }
 
 export function parseDiasLaborables(bitmask) {
@@ -69,15 +81,15 @@ export function formatDiasLaborables(bitmask) {
 }
 
 export function isDiaLaborable(dateString, bitmask) {
-  const date = new Date(dateString + 'T00:00:00');
+  const date = parseDateLocal(dateString);
   const mask = bitmask ?? DIAS_LABORABLES_DEFAULT;
   return (mask & jsDayToBitmask(date.getDay())) !== 0;
 }
 
 export function contarDiasLaborablesEnRango(fechaInicio, fechaFin, bitmask) {
   const mask = bitmask ?? DIAS_LABORABLES_DEFAULT;
-  const inicio = new Date(fechaInicio + 'T00:00:00');
-  const fin = new Date(fechaFin + 'T00:00:00');
+  const inicio = parseDateLocal(fechaInicio);
+  const fin = parseDateLocal(fechaFin);
   let count = 0;
 
   const current = new Date(inicio);
@@ -92,18 +104,18 @@ export function contarDiasLaborablesEnRango(fechaInicio, fechaFin, bitmask) {
 }
 
 export function getMondayOfWeek(dateString) {
-  const date = new Date(dateString + 'T00:00:00');
+  const date = parseDateLocal(dateString);
   const day = date.getDay();
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(date.getFullYear(), date.getMonth(), diff);
-  return monday.toISOString().split('T')[0];
+  return formatDateLocal(monday);
 }
 
 export function getSundayOfWeek(mondayString) {
-  const monday = new Date(mondayString + 'T00:00:00');
+  const monday = parseDateLocal(mondayString);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  return sunday.toISOString().split('T')[0];
+  return formatDateLocal(sunday);
 }
 
 export function esLiquidacionDefinitiva(fechaFin, lunesSemana, contrato) {

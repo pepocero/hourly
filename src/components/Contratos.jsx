@@ -13,6 +13,7 @@ import {
   getMondayOfWeek,
   getFechaDiaCierreSemana,
   esLiquidacionDefinitiva,
+  formatDateLocal,
   DIAS_LABORABLES_DEFAULT
 } from '../utils/contratoHoras';
 
@@ -46,8 +47,8 @@ function Contratos() {
     sunday.setDate(monday.getDate() + 6);
     
     return {
-      inicio: monday.toISOString().split('T')[0],
-      fin: sunday.toISOString().split('T')[0]
+      inicio: formatDateLocal(monday),
+      fin: formatDateLocal(sunday)
     };
   };
 

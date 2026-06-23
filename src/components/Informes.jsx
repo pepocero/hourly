@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPorSemanas, formatDiasLaborables } from '../utils/contratoHoras';
+import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek } from '../utils/contratoHoras';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 
@@ -231,9 +231,11 @@ function Informes() {
       const totalHoras = subtotal.totalMinutos / 60;
 
       subtotal.totalHoras = totalHoras;
-      subtotal.horasNormales = totalHoras - resultado.horasExtras;
+      subtotal.horasEsperadas = resultado.semanas.reduce((sum, s) => sum + s.horasEsperadas, 0);
       subtotal.horasExtras = resultado.horasExtras;
+      subtotal.horasNormales = Math.min(totalHoras, subtotal.horasEsperadas);
       subtotal.totalExtras = resultado.importe;
+      subtotal.semanas = resultado.semanas;
     });
     
     return subtotales;
@@ -263,11 +265,7 @@ function Informes() {
     { id: 'mensual', label: 'Mensual', icon: Calendar, description: 'Resumen mensual de horas trabajadas' }
   ];
 
-  const getFinSemana = (semanaLunes) => {
-    const d = new Date(semanaLunes + 'T00:00:00');
-    d.setDate(d.getDate() + 6);
-    return d.toISOString().split('T')[0];
-  };
+  const getFinSemana = (semanaLunes) => getSundayOfWeek(semanaLunes);
 
   const agruparLiquidacionesPorSemana = () => {
     const grupos = {};
@@ -1183,7 +1181,9 @@ function Informes() {
                   <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                     <p className="text-xs text-gray-600 mb-1">Horas Normales</p>
                     <p className="text-lg font-bold text-green-600">{subtotal.horasNormales.toFixed(2)}h</p>
-                    <p className="text-xs text-gray-500">de {subtotal.horasSemanales}h ({formatDiasLaborables(subtotal.diasLaborables)})</p>
+                    <p className="text-xs text-gray-500">
+                      de {subtotal.horasEsperadas.toFixed(2)}h esperadas ({subtotal.horasSemanales}h sem. {formatDiasLaborables(subtotal.diasLaborables)})
+                    </p>
                   </div>
                   <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
                     <p className="text-xs text-gray-600 mb-1">Horas Extras</p>
