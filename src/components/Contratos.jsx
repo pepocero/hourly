@@ -5,6 +5,8 @@ import ContratoForm from './ContratoForm';
 import ContratosList from './ContratosList';
 import HorarioContratoForm from './HorarioContratoForm';
 import HorariosContratoList from './HorariosContratoList';
+import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 import {
   calcularHorasEsperadasSemana,
   formatDiasLaborables,
@@ -26,6 +28,9 @@ function Contratos() {
   const [editingHorario, setEditingHorario] = useState(null);
   const [loading, setLoading] = useState(true);
   const [resumenSemanal, setResumenSemanal] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [contratoToDelete, setContratoToDelete] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   
   // Referencia para acceder a las funciones del componente HorariosContratoList
   const horariosListRef = React.useRef(null);
@@ -127,18 +132,47 @@ function Contratos() {
     setShowHorarioForm(true);
   };
 
-  const handleDeleteContrato = async (id) => {
-    if (confirm('¿Estás seguro de eliminar este contrato?')) {
-      try {
-        await apiService.deleteContrato(id);
+  const handleDeleteClick = (id) => {
+    const contrato = contratos.find((c) => c.id === id);
+    if (!contrato) return;
+    setContratoToDelete(contrato);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!contratoToDelete) return;
+
+    try {
+      const response = await apiService.deleteContrato(contratoToDelete.id);
+      if (response.success) {
         loadContratos();
-        if (contratoSeleccionado?.id === id) {
+        if (contratoSeleccionado?.id === contratoToDelete.id) {
           setContratoSeleccionado(null);
         }
-      } catch (error) {
-        console.error('Error eliminando contrato:', error);
+        setShowDeleteModal(false);
+        setContratoToDelete(null);
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al eliminar',
+          message: response.error || 'No se pudo eliminar el contrato.',
+          type: 'error'
+        });
       }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al eliminar',
+        message: 'No se pudo eliminar el contrato. Inténtalo de nuevo.',
+        type: 'error'
+      });
+      console.error('Error eliminando contrato:', error);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setContratoToDelete(null);
   };
 
   // Calcular horas extras
@@ -209,7 +243,7 @@ function Contratos() {
           contratoSeleccionado={contratoSeleccionado}
           onSelect={setContratoSeleccionado}
           onEdit={handleEditContrato}
-          onDelete={handleDeleteContrato}
+          onDelete={handleDeleteClick}
         />
       </div>
 
@@ -390,6 +424,25 @@ function Contratos() {
           onSave={handleHorarioSaved}
         />
       )}
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar contrato"
+        message={`¿Eliminar el contrato "${contratoToDelete?.nombre}"? Se eliminarán también todos sus horarios registrados. Esta acción no se puede deshacer.`}
+        confirmText="Eliminar contrato"
+        cancelText="Cancelar"
+        type="danger"
+      />
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
     </div>
   );
 }

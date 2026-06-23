@@ -256,9 +256,9 @@ export class DatabaseService {
 
   // ========== LIQUIDACIONES DE CONTRATO ==========
 
-  async getLiquidacionesContrato(userId, contratoId = null, semanaLunes = null) {
+  async getLiquidacionesContrato(userId, contratoId = null, semanaLunes = null, fechaInicio = null, fechaFin = null) {
     let query = `
-      SELECT l.*, c.nombre as contrato_nombre
+      SELECT l.*, c.nombre as contrato_nombre, c.color as contrato_color
       FROM liquidaciones_contrato l
       LEFT JOIN contratos c ON l.contrato_id = c.id
       WHERE l.user_id = ?
@@ -275,7 +275,12 @@ export class DatabaseService {
       params.push(semanaLunes);
     }
 
-    query += ` ORDER BY l.semana_lunes DESC, l.created_at DESC`;
+    if (fechaInicio && fechaFin) {
+      query += ` AND l.semana_lunes <= ? AND date(l.semana_lunes, '+6 days') >= ?`;
+      params.push(fechaFin, fechaInicio);
+    }
+
+    query += ` ORDER BY l.semana_lunes DESC, l.contrato_id ASC, l.created_at DESC`;
 
     const stmt = this.db.prepare(query);
     return await stmt.bind(...params).all();

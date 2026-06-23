@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock } from 'lucide-react';
 import apiService from '../services/api';
+import ConfirmModal from './ConfirmModal';
+import { useFormConfirmations } from '../hooks/useFormConfirmations';
 
 function HorasForm({ hora, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -15,11 +17,22 @@ function HorasForm({ hora, onClose, onSave }) {
   const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const {
+    showDiscardModal,
+    showSaveModal,
+    resetSnapshot,
+    requestClose,
+    confirmDiscard,
+    cancelDiscard,
+    requestSave,
+    confirmSave,
+    cancelSave
+  } = useFormConfirmations({ onClose });
 
   useEffect(() => {
     loadProyectos();
     if (hora) {
-      setFormData({
+      const data = {
         proyecto_id: hora.proyecto_id || '',
         fecha: hora.fecha || new Date().toISOString().split('T')[0],
         hora_inicio: hora.hora_inicio || '',
@@ -27,9 +40,22 @@ function HorasForm({ hora, onClose, onSave }) {
         descripcion: hora.descripcion || '',
         tarifa_aplicada: hora.tarifa_aplicada || '',
         total: hora.total || ''
-      });
+      };
+      setFormData(data);
+      resetSnapshot(data);
+    } else {
+      const data = {
+        proyecto_id: '',
+        fecha: new Date().toISOString().split('T')[0],
+        hora_inicio: '',
+        hora_fin: '',
+        descripcion: '',
+        tarifa_aplicada: '',
+        total: ''
+      };
+      resetSnapshot(data);
     }
-  }, [hora]);
+  }, [hora, resetSnapshot]);
 
   const loadProyectos = async () => {
     try {
@@ -148,28 +174,25 @@ function HorasForm({ hora, onClose, onSave }) {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const performSave = async () => {
     setLoading(true);
     setError('');
 
     try {
-      // Calcular cantidad de horas y duración en minutos
       let cantidadHoras = 0;
-      let duracionMinutos = 0;
-      
+
       if (formData.hora_inicio && formData.hora_fin) {
         const [inicioHora, inicioMin] = formData.hora_inicio.split(':').map(Number);
         const [finHora, finMin] = formData.hora_fin.split(':').map(Number);
-        
+
         const inicioMinutos = inicioHora * 60 + inicioMin;
         const finMinutos = finHora * 60 + finMin;
-        
-        duracionMinutos = finMinutos - inicioMinutos;
+
+        let duracionMinutos = finMinutos - inicioMinutos;
         if (duracionMinutos < 0) {
           duracionMinutos += 24 * 60;
         }
-        
+
         cantidadHoras = duracionMinutos / 60;
       }
 
@@ -196,12 +219,18 @@ function HorasForm({ hora, onClose, onSave }) {
       } else {
         setError(response.error || 'Error al guardar');
       }
-    } catch (error) {
-      setError(error.message || 'Error al guardar');
+    } catch (err) {
+      setError(err.message || 'Error al guardar');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSubmit = (e) => {
+    requestSave(e, performSave);
+  };
+
+  const proyectoNombre = proyectos.find((p) => p.id === parseInt(formData.proyecto_id))?.nombre;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
@@ -215,7 +244,8 @@ function HorasForm({ hora, onClose, onSave }) {
             </h2>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={() => requestClose(formData)}
             className="text-gray-400 hover:text-gray-600 p-1"
           >
             <X className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -383,7 +413,7 @@ function HorasForm({ hora, onClose, onSave }) {
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-3 sm:pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => requestClose(formData)}
               className="btn-secondary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
             >
               Cancelar
@@ -398,6 +428,53 @@ function HorasForm({ hora, onClose, onSave }) {
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={showDiscardModal}
+        onClose={cancelDiscard}
+        onConfirm={confirmDiscard}
+        title="Descartar cambios"
+        message="Tienes cambios sin guardar. ¿Quieres cerrar sin guardar?"
+        confirmText="Descartar"
+        cancelText="Seguir editando"
+        type="warning"
+      />
+
+      <ConfirmModal
+        isOpen={showSaveModal}
+        onClose={cancelSave}
+        onConfirm={confirmSave}
+        title={hora ? 'Guardar cambios' : 'Registrar hora trabajada'}
+        message={hora
+          ? 'Se actualizará el registro de horas. Esto puede afectar informes y totales del periodo.'
+          : 'Se registrará una nueva hora trabajada con los datos indicados.'}
+        confirmText={hora ? 'Guardar cambios' : 'Registrar'}
+        cancelText="Cancelar"
+        type="info"
+      >
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Proyecto</span>
+            <span className="font-medium text-gray-900">{proyectoNombre || '—'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Fecha</span>
+            <span className="font-medium text-gray-900">{formData.fecha}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Horario</span>
+            <span className="font-medium text-gray-900">
+              {formData.hora_inicio} – {formData.hora_fin}
+            </span>
+          </div>
+          {formData.total && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">Total</span>
+              <span className="font-medium text-green-600">${formData.total}</span>
+            </div>
+          )}
+        </div>
+      </ConfirmModal>
     </div>
   );
 }

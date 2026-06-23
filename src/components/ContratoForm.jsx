@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Briefcase } from 'lucide-react';
 import apiService from '../services/api';
 import DiasLaborablesPicker from './DiasLaborablesPicker';
+import ConfirmModal from './ConfirmModal';
+import { useFormConfirmations } from '../hooks/useFormConfirmations';
 import {
   DIAS_LABORABLES_DEFAULT,
   formatDiasLaborables,
@@ -21,6 +23,17 @@ function ContratoForm({ contrato, onClose, onSave }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const {
+    showDiscardModal,
+    showSaveModal,
+    resetSnapshot,
+    requestClose,
+    confirmDiscard,
+    cancelDiscard,
+    requestSave,
+    confirmSave,
+    cancelSave
+  } = useFormConfirmations({ onClose });
 
   const coloresPredefinidos = [
     '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
@@ -29,16 +42,29 @@ function ContratoForm({ contrato, onClose, onSave }) {
 
   useEffect(() => {
     if (contrato) {
-      setFormData({
+      const data = {
         nombre: contrato.nombre || '',
         horas_semanales: contrato.horas_semanales?.toString() || '40',
         valor_hora_extra: contrato.valor_hora_extra?.toString() || '0',
         color: contrato.color || '#8b5cf6',
         dias_laborables: contrato.dias_laborables ?? DIAS_LABORABLES_DEFAULT,
         dia_cierre_liquidacion: contrato.dia_cierre_liquidacion ?? null
-      });
+      };
+      setFormData(data);
+      resetSnapshot(data);
+    } else {
+      const data = {
+        nombre: '',
+        horas_semanales: '40',
+        valor_hora_extra: '0',
+        color: '#8b5cf6',
+        dias_laborables: DIAS_LABORABLES_DEFAULT,
+        dia_cierre_liquidacion: null
+      };
+      setFormData(data);
+      resetSnapshot(data);
     }
-  }, [contrato]);
+  }, [contrato, resetSnapshot]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -48,8 +74,7 @@ function ContratoForm({ contrato, onClose, onSave }) {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const performSave = async () => {
     setLoading(true);
     setError('');
 
@@ -75,11 +100,15 @@ function ContratoForm({ contrato, onClose, onSave }) {
       } else {
         setError(response.error || 'Error al guardar');
       }
-    } catch (error) {
-      setError(error.message || 'Error al guardar');
+    } catch (err) {
+      setError(err.message || 'Error al guardar');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e) => {
+    requestSave(e, performSave);
   };
 
   return (
@@ -94,7 +123,8 @@ function ContratoForm({ contrato, onClose, onSave }) {
             </h2>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={() => requestClose(formData)}
             className="text-gray-400 hover:text-gray-600 p-1"
           >
             <X className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -257,7 +287,7 @@ function ContratoForm({ contrato, onClose, onSave }) {
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-3 sm:pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => requestClose(formData)}
               className="btn-secondary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
             >
               Cancelar
@@ -272,6 +302,51 @@ function ContratoForm({ contrato, onClose, onSave }) {
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={showDiscardModal}
+        onClose={cancelDiscard}
+        onConfirm={confirmDiscard}
+        title="Descartar cambios"
+        message="Tienes cambios sin guardar en este contrato. ¿Quieres cerrar sin guardar?"
+        confirmText="Descartar"
+        cancelText="Seguir editando"
+        type="warning"
+      />
+
+      <ConfirmModal
+        isOpen={showSaveModal}
+        onClose={cancelSave}
+        onConfirm={confirmSave}
+        title={contrato ? 'Guardar cambios del contrato' : 'Crear contrato'}
+        message={contrato
+          ? 'Los cambios en horas semanales, días laborables o día de cierre afectarán el cálculo de extras y liquidaciones futuras.'
+          : 'Se creará un nuevo contrato con la configuración indicada.'}
+        confirmText={contrato ? 'Guardar cambios' : 'Crear contrato'}
+        cancelText="Cancelar"
+        type={contrato ? 'warning' : 'info'}
+      >
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Nombre</span>
+            <span className="font-medium text-gray-900">{formData.nombre || '—'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Horas semanales</span>
+            <span className="font-medium text-gray-900">{formData.horas_semanales}h</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Días laborables</span>
+            <span className="font-medium text-gray-900">{formatDiasLaborables(formData.dias_laborables)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Cierre liquidación</span>
+            <span className="font-medium text-gray-900">
+              {DIAS_SEMANA_NOMBRES[formData.dia_cierre_liquidacion ?? getDiaCierreEfectivo(formData.dias_laborables, null)]}
+            </span>
+          </div>
+        </div>
+      </ConfirmModal>
     </div>
   );
 }

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Calendar } from 'lucide-react';
 import apiService from '../services/api';
+import ConfirmModal from './ConfirmModal';
+import { useFormConfirmations } from '../hooks/useFormConfirmations';
 
 function ProyectoForm({ proyecto, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -11,6 +13,17 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const {
+    showDiscardModal,
+    showSaveModal,
+    resetSnapshot,
+    requestClose,
+    confirmDiscard,
+    cancelDiscard,
+    requestSave,
+    confirmSave,
+    cancelSave
+  } = useFormConfirmations({ onClose });
 
   const colors = [
     '#3b82f6', // blue
@@ -23,27 +36,28 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
     '#f97316', // orange
   ];
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (proyecto) {
-      setFormData({
+      const data = {
         nombre: proyecto.nombre || '',
         descripcion: proyecto.descripcion || '',
         tarifa_hora: proyecto.tarifa_hora || '',
         color: proyecto.color || '#3b82f6'
-      });
+      };
+      setFormData(data);
+      resetSnapshot(data);
+    } else {
+      const data = {
+        nombre: '',
+        descripcion: '',
+        tarifa_hora: '',
+        color: '#3b82f6'
+      };
+      resetSnapshot(data);
     }
-  }, [proyecto]);
+  }, [proyecto, resetSnapshot]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const performSave = async () => {
     setLoading(true);
     setError('');
 
@@ -60,11 +74,23 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
       } else {
         setError(response.error || 'Error al guardar');
       }
-    } catch (error) {
-      setError(error.message || 'Error al guardar');
+    } catch (err) {
+      setError(err.message || 'Error al guardar');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e) => {
+    requestSave(e, performSave);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   return (
@@ -79,7 +105,8 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
             </h2>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={() => requestClose(formData)}
             className="text-gray-400 hover:text-gray-600"
           >
             <X className="h-5 w-5" />
@@ -169,7 +196,7 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
           <div className="flex space-x-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => requestClose(formData)}
               className="btn-secondary flex-1"
             >
               Cancelar
@@ -184,6 +211,43 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={showDiscardModal}
+        onClose={cancelDiscard}
+        onConfirm={confirmDiscard}
+        title="Descartar cambios"
+        message="Tienes cambios sin guardar en este proyecto. ¿Quieres cerrar sin guardar?"
+        confirmText="Descartar"
+        cancelText="Seguir editando"
+        type="warning"
+      />
+
+      <ConfirmModal
+        isOpen={showSaveModal}
+        onClose={cancelSave}
+        onConfirm={confirmSave}
+        title={proyecto ? 'Guardar cambios del proyecto' : 'Crear proyecto'}
+        message={proyecto
+          ? 'Si cambias la tarifa por hora, las horas ya registradas mantendrán su tarifa original salvo que las actualices manualmente.'
+          : 'Se creará un nuevo proyecto con la configuración indicada.'}
+        confirmText={proyecto ? 'Guardar cambios' : 'Crear proyecto'}
+        cancelText="Cancelar"
+        type={proyecto ? 'warning' : 'info'}
+      >
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Nombre</span>
+            <span className="font-medium text-gray-900">{formData.nombre || '—'}</span>
+          </div>
+          {formData.tarifa_hora !== '' && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">Tarifa/hora</span>
+              <span className="font-medium text-gray-900">${formData.tarifa_hora}</span>
+            </div>
+          )}
+        </div>
+      </ConfirmModal>
     </div>
   );
 }

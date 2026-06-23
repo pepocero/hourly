@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown } from 'lucide-react';
+import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck } from 'lucide-react';
 import apiService from '../services/api';
 import { calcularHorasExtrasPorSemanas, formatDiasLaborables } from '../utils/contratoHoras';
+import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 
 function Informes() {
   const [tipoInforme, setTipoInforme] = useState('detallado');
@@ -14,9 +16,12 @@ function Informes() {
   const [contratos, setContratos] = useState([]);
   const [horas, setHoras] = useState([]);
   const [horariosContrato, setHorariosContrato] = useState([]);
+  const [liquidaciones, setLiquidaciones] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [exportModal, setExportModal] = useState({ isOpen: false, type: null });
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   // Establecer fechas por defecto (mes actual)
   useEffect(() => {
@@ -67,6 +72,7 @@ function Informes() {
       setError('');
 
       if (tipoDatos === 'proyectos') {
+        setLiquidaciones([]);
         // Cargar horas trabajadas
         const horasResponse = await apiService.getHoras(fechaInicio, fechaFin);
         if (horasResponse.success) {
@@ -87,7 +93,8 @@ function Informes() {
         if (resumenResponse.success) {
           setResumen(resumenResponse.data);
         }
-      } else {
+      } else if (tipoDatos === 'contratos') {
+        setLiquidaciones([]);
         // Cargar horarios de contrato
         const horariosResponse = await apiService.getHorariosContrato(
           contratoFiltro || null,
@@ -96,6 +103,20 @@ function Informes() {
         );
         if (horariosResponse.success) {
           setHorariosContrato(horariosResponse.data);
+        }
+      } else if (tipoDatos === 'liquidaciones') {
+        setHoras([]);
+        setHorariosContrato([]);
+        setResumen(null);
+
+        const liquidacionesResponse = await apiService.getLiquidacionesContrato(
+          contratoFiltro ? parseInt(contratoFiltro) : null,
+          null,
+          fechaInicio,
+          fechaFin
+        );
+        if (liquidacionesResponse.success) {
+          setLiquidaciones(liquidacionesResponse.data || []);
         }
       }
 
@@ -111,15 +132,14 @@ function Informes() {
     loadDatos();
   };
 
-  const handleExportarCSV = async () => {
-    try {
-      await apiService.exportarCSV(fechaInicio, fechaFin);
-    } catch (error) {
-      console.error('Error exportando CSV:', error);
-      alert('Error al exportar el archivo CSV');
-    }
+  const formatDateLong = (dateString) => {
+    if (!dateString) return '';
+    return new Date(dateString + 'T00:00:00').toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
   };
-
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -243,33 +263,204 @@ function Informes() {
     { id: 'mensual', label: 'Mensual', icon: Calendar, description: 'Resumen mensual de horas trabajadas' }
   ];
 
-  const handleExportarPDF = async () => {
-    if (horas.length === 0) {
-      alert('No hay datos para exportar');
+  const getFinSemana = (semanaLunes) => {
+    const d = new Date(semanaLunes + 'T00:00:00');
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().split('T')[0];
+  };
+
+  const agruparLiquidacionesPorSemana = () => {
+    const grupos = {};
+
+    liquidaciones.forEach((liq) => {
+      const key = `${liq.contrato_id}-${liq.semana_lunes}`;
+      if (!grupos[key]) {
+        grupos[key] = {
+          contratoId: liq.contrato_id,
+          contratoNombre: liq.contrato_nombre,
+          contratoColor: liq.contrato_color || '#8b5cf6',
+          semanaLunes: liq.semana_lunes,
+          semanaFin: getFinSemana(liq.semana_lunes),
+          registros: []
+        };
+      }
+      grupos[key].registros.push(liq);
+    });
+
+    return Object.values(grupos).sort((a, b) => {
+      const cmpSemana = b.semanaLunes.localeCompare(a.semanaLunes);
+      if (cmpSemana !== 0) return cmpSemana;
+      return (a.contratoNombre || '').localeCompare(b.contratoNombre || '');
+    });
+  };
+
+  const liquidacionesPorSemana = tipoDatos === 'liquidaciones' ? agruparLiquidacionesPorSemana() : [];
+  const totalSemanasLiquidadas = liquidacionesPorSemana.length;
+  const totalImporteLiquidaciones = liquidaciones.reduce((sum, liq) => sum + parseFloat(liq.importe || 0), 0);
+  const totalHorasExtrasLiquidaciones = liquidacionesPorSemana.reduce((sum, grupo) => {
+    const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
+      || grupo.registros.find((r) => r.tipo === 'anticipada');
+    return sum + (refLiq ? parseFloat(refLiq.horas_extras || 0) : 0);
+  }, 0);
+  const liquidacionesPorTipo = liquidaciones.reduce((acc, liq) => {
+    acc[liq.tipo] = (acc[liq.tipo] || 0) + 1;
+    return acc;
+  }, {});
+
+  const getTipoLiquidacionStyle = (tipo) => {
+    switch (tipo) {
+      case 'anticipada':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'definitiva':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'ajuste':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const formatFechaRegistro = (dateString) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const handleExportarCSVClick = () => {
+    if (!fechaInicio || !fechaFin) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Fechas requeridas',
+        message: 'Selecciona un rango de fechas antes de exportar.',
+        type: 'warning'
+      });
+      return;
+    }
+    if (tipoDatos === 'proyectos' && horas.length === 0) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Sin datos',
+        message: 'No hay horas registradas en el periodo seleccionado para exportar.',
+        type: 'info'
+      });
+      return;
+    }
+    setExportModal({ isOpen: true, type: 'csv' });
+  };
+
+  const handleExportarPDFClick = () => {
+    if (!fechaInicio || !fechaFin) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Fechas requeridas',
+        message: 'Selecciona un rango de fechas antes de exportar.',
+        type: 'warning'
+      });
+      return;
+    }
+    if (tipoDatos === 'proyectos' && horas.length === 0) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Sin datos',
+        message: 'No hay horas registradas en el periodo seleccionado para generar el PDF.',
+        type: 'info'
+      });
+      return;
+    }
+    if (tipoDatos === 'contratos' && horariosContrato.length === 0) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Sin datos',
+        message: 'No hay horarios de contrato en el periodo seleccionado para generar el PDF.',
+        type: 'info'
+      });
+      return;
+    }
+    setExportModal({ isOpen: true, type: 'pdf' });
+  };
+
+  const handleExportConfirm = async () => {
+    const exportType = exportModal.type;
+    setExportModal({ isOpen: false, type: null });
+
+    if (exportType === 'csv') {
+      try {
+        await apiService.exportarCSV(fechaInicio, fechaFin);
+      } catch (error) {
+        console.error('Error exportando CSV:', error);
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al exportar',
+          message: 'No se pudo generar el archivo CSV. Inténtalo de nuevo.',
+          type: 'error'
+        });
+      }
       return;
     }
 
-    const title = 'Informe de Horas Trabajadas';
-    const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
-    
-    // Carga diferida del servicio PDF para evitar incluir jspdf en el bundle inicial
-    const { default: pdfService } = await import('../services/pdfService');
+    if (exportType === 'pdf') {
+      const title = tipoDatos === 'proyectos'
+        ? 'Informe de Horas Trabajadas'
+        : 'Informe de Horarios de Contrato';
+      const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
 
-    pdfService.generatePDF(
-      title,
-      subtitle,
-      fechaInicio,
-      fechaFin,
-      horas,
-      subtotalesPorProyecto,
-      {
-        totalHoras: totalGeneralHoras,
-        totalGanancias: totalGeneralGanancias,
-        totalRegistros: horas.length,
-        promedioMinutos: horas.length > 0 ? totalGeneralMinutos / horas.length : 0
+      try {
+        const { default: pdfService } = await import('../services/pdfService');
+
+        if (tipoDatos === 'proyectos') {
+          pdfService.generatePDF(
+            title,
+            subtitle,
+            fechaInicio,
+            fechaFin,
+            horas,
+            subtotalesPorProyecto,
+            {
+              totalHoras: totalGeneralHoras,
+              totalGanancias: totalGeneralGanancias,
+              totalRegistros: horas.length,
+              promedioMinutos: horas.length > 0 ? totalGeneralMinutos / horas.length : 0
+            }
+          );
+        } else {
+          pdfService.generatePDF(
+            title,
+            subtitle,
+            fechaInicio,
+            fechaFin,
+            horariosContrato,
+            subtotalesPorContrato,
+            {
+              totalHoras: totalGeneralHoras,
+              totalGanancias: totalGeneralGanancias,
+              totalRegistros: horariosContrato.length,
+              promedioMinutos: horariosContrato.length > 0 ? totalGeneralMinutos / horariosContrato.length : 0
+            }
+          );
+        }
+      } catch (error) {
+        console.error('Error exportando PDF:', error);
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al exportar',
+          message: 'No se pudo generar el archivo PDF. Inténtalo de nuevo.',
+          type: 'error'
+        });
       }
-    );
+    }
   };
+
+  const exportModalTitle = exportModal.type === 'pdf' ? 'Exportar informe PDF' : 'Exportar horas a CSV';
+  const exportModalMessage = exportModal.type === 'pdf'
+    ? 'Se generará un documento PDF con los datos del informe actual.'
+    : 'Se descargará un archivo CSV con las horas del periodo seleccionado.';
+  const exportConfirmText = exportModal.type === 'pdf' ? 'Generar PDF' : 'Descargar CSV';
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -281,22 +472,26 @@ function Informes() {
         </div>
         
         <div className="flex space-x-2 sm:space-x-3">
-          <button
-            onClick={handleExportarCSV}
-            className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
-          >
-            <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Exportar CSV</span>
-            <span className="sm:hidden">CSV</span>
-          </button>
-          <button
-            onClick={handleExportarPDF}
-            className="btn-primary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
-          >
-            <FileDown className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Exportar PDF</span>
-            <span className="sm:hidden">PDF</span>
-          </button>
+          {tipoDatos !== 'liquidaciones' && (
+            <>
+              <button
+                onClick={handleExportarCSVClick}
+                className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
+              >
+                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Exportar CSV</span>
+                <span className="sm:hidden">CSV</span>
+              </button>
+              <button
+                onClick={handleExportarPDFClick}
+                className="btn-primary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
+              >
+                <FileDown className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Exportar PDF</span>
+                <span className="sm:hidden">PDF</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -308,7 +503,7 @@ function Informes() {
             <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
               Tipo de Datos
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 onClick={() => setTipoDatos('proyectos')}
                 className={`p-3 rounded-lg border-2 text-center transition-colors ${
@@ -331,10 +526,22 @@ function Informes() {
                 <BarChart3 className="h-5 w-5 mx-auto mb-1" />
                 <span className="text-sm font-medium">Contratos</span>
               </button>
+              <button
+                onClick={() => setTipoDatos('liquidaciones')}
+                className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                  tipoDatos === 'liquidaciones'
+                    ? 'border-orange-500 bg-orange-50 text-orange-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <FileCheck className="h-5 w-5 mx-auto mb-1" />
+                <span className="text-sm font-medium">Liquidaciones</span>
+              </button>
             </div>
           </div>
 
           {/* Tipo de informe */}
+          {tipoDatos !== 'liquidaciones' && (
           <div>
             <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
               Tipo de Informe
@@ -362,6 +569,16 @@ function Informes() {
               })}
             </div>
           </div>
+          )}
+
+          {tipoDatos === 'liquidaciones' && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-sm text-orange-900">
+                Consulta qué semanas han sido liquidadas en el rango de fechas seleccionado.
+                Se muestran las semanas cuyo periodo (lunes a domingo) coincide con el filtro.
+              </p>
+            </div>
+          )}
 
           {/* Filtros de fecha y proyecto/contrato */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -406,6 +623,24 @@ function Informes() {
                     ))}
                   </select>
                 </>
+              ) : tipoDatos === 'contratos' ? (
+                <>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    Contrato (opcional)
+                  </label>
+                  <select
+                    value={contratoFiltro}
+                    onChange={(e) => setContratoFiltro(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="">Todos los contratos</option>
+                    {contratos.map((contrato) => (
+                      <option key={contrato.id} value={contrato.id}>
+                        {contrato.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </>
               ) : (
                 <>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
@@ -436,7 +671,7 @@ function Informes() {
               className="btn-primary flex items-center space-x-2 text-sm px-4 py-2"
             >
               <FileText className="h-4 w-4" />
-              <span>{loading ? 'Generando...' : 'Generar Informe'}</span>
+              <span>{loading ? 'Generando...' : tipoDatos === 'liquidaciones' ? 'Consultar liquidaciones' : 'Generar Informe'}</span>
             </button>
           </div>
         </div>
@@ -450,7 +685,7 @@ function Informes() {
       )}
 
       {/* Resumen general */}
-      {(resumen || horariosContrato.length > 0) && (
+      {tipoDatos !== 'liquidaciones' && (resumen || horariosContrato.length > 0) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <div className="card">
             <div className="flex items-center">
@@ -510,6 +745,176 @@ function Informes() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resumen de liquidaciones */}
+      {tipoDatos === 'liquidaciones' && liquidaciones.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
+                <FileCheck className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-orange-600" />
+              </div>
+              <div className="ml-2 sm:ml-3 lg:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Semanas liquidadas</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                  {totalSemanasLiquidadas}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-blue-600" />
+              </div>
+              <div className="ml-2 sm:ml-3 lg:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Registros</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                  {liquidaciones.length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-1.5 sm:p-2 bg-amber-100 rounded-lg">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-amber-600" />
+              </div>
+              <div className="ml-2 sm:ml-3 lg:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Horas extras (liq.)</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-600">
+                  {totalHorasExtrasLiquidaciones.toFixed(2)}h
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
+                <Euro className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
+              </div>
+              <div className="ml-2 sm:ml-3 lg:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Importe total</p>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">
+                  ${totalImporteLiquidaciones.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detalle de liquidaciones por semana */}
+      {tipoDatos === 'liquidaciones' && liquidacionesPorSemana.length > 0 && (
+        <div className="card">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center space-x-2">
+              <FileCheck className="h-5 w-5 text-orange-600" />
+              <span>Semanas liquidadas</span>
+            </h3>
+            <p className="text-xs text-gray-500">
+              {formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}
+              {contratoFiltro && contratos.find((c) => c.id === parseInt(contratoFiltro)) && (
+                <span> • {contratos.find((c) => c.id === parseInt(contratoFiltro)).nombre}</span>
+              )}
+            </p>
+          </div>
+
+          {(liquidacionesPorTipo.anticipada || liquidacionesPorTipo.definitiva || liquidacionesPorTipo.ajuste) && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {liquidacionesPorTipo.anticipada > 0 && (
+                <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                  {liquidacionesPorTipo.anticipada} anticipada{liquidacionesPorTipo.anticipada !== 1 ? 's' : ''}
+                </span>
+              )}
+              {liquidacionesPorTipo.definitiva > 0 && (
+                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 border border-green-200">
+                  {liquidacionesPorTipo.definitiva} definitiva{liquidacionesPorTipo.definitiva !== 1 ? 's' : ''}
+                </span>
+              )}
+              {liquidacionesPorTipo.ajuste > 0 && (
+                <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                  {liquidacionesPorTipo.ajuste} ajuste{liquidacionesPorTipo.ajuste !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {liquidacionesPorSemana.map((grupo) => {
+              const importeGrupo = grupo.registros.reduce((sum, r) => sum + parseFloat(r.importe || 0), 0);
+              const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
+                || grupo.registros.find((r) => r.tipo === 'anticipada');
+              const horasExtrasGrupo = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
+
+              return (
+                <div
+                  key={`${grupo.contratoId}-${grupo.semanaLunes}`}
+                  className="border border-gray-200 rounded-lg overflow-hidden"
+                  style={{ borderLeftWidth: '4px', borderLeftColor: grupo.contratoColor }}
+                >
+                  <div className="bg-gray-50 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: grupo.contratoColor }}
+                        />
+                        <span className="font-medium text-gray-900">{grupo.contratoNombre}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Semana {formatDateLong(grupo.semanaLunes)} – {formatDateLong(grupo.semanaFin)}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-4 text-sm">
+                      <span className="text-orange-600 font-medium">{horasExtrasGrupo.toFixed(2)}h extras</span>
+                      {importeGrupo !== 0 && (
+                        <span className="text-green-600 font-medium">${importeGrupo.toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {grupo.registros.map((liq) => (
+                      <div key={liq.id} className="px-3 sm:px-4 py-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="flex items-center space-x-3">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border capitalize ${getTipoLiquidacionStyle(liq.tipo)}`}>
+                              {liq.tipo}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              Registrada: {formatFechaRegistro(liq.created_at)}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm">
+                            <span className="text-gray-600">
+                              {parseFloat(liq.horas_trabajadas).toFixed(2)}h trab. / {parseFloat(liq.horas_esperadas).toFixed(2)}h esp.
+                            </span>
+                            <span className="font-medium text-orange-600">
+                              {parseFloat(liq.horas_extras).toFixed(2)}h extras
+                            </span>
+                            {parseFloat(liq.importe) !== 0 && (
+                              <span className={`font-medium ${parseFloat(liq.importe) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                ${parseFloat(liq.importe).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {liq.notas && (
+                          <p className="text-xs text-gray-500 mt-2">{liq.notas}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -833,15 +1238,57 @@ function Informes() {
       )}
 
       {/* Sin datos */}
-      {((tipoDatos === 'proyectos' && horas.length === 0) || (tipoDatos === 'contratos' && horariosContrato.length === 0)) && !loading && (
+      {((tipoDatos === 'proyectos' && horas.length === 0) || (tipoDatos === 'contratos' && horariosContrato.length === 0) || (tipoDatos === 'liquidaciones' && liquidaciones.length === 0)) && !loading && fechaInicio && fechaFin && (
         <div className="card text-center py-8">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No hay datos para mostrar</h3>
           <p className="text-gray-600">
-            Selecciona un rango de fechas y genera un informe para ver tus {tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.
+            {tipoDatos === 'liquidaciones'
+              ? 'No hay liquidaciones registradas en el rango de fechas seleccionado.'
+              : `Selecciona un rango de fechas y genera un informe para ver tus ${tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.`}
           </p>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={exportModal.isOpen}
+        onClose={() => setExportModal({ isOpen: false, type: null })}
+        onConfirm={handleExportConfirm}
+        title={exportModalTitle}
+        message={exportModalMessage}
+        confirmText={exportConfirmText}
+        cancelText="Cancelar"
+        type="info"
+      >
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Periodo</span>
+            <span className="font-medium text-gray-900">
+              {formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Tipo de datos</span>
+            <span className="font-medium text-gray-900 capitalize">{tipoDatos}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Registros</span>
+            <span className="font-medium text-gray-900">{totalRegistros}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Total horas</span>
+            <span className="font-medium text-blue-600">{totalGeneralHoras.toFixed(1)}h</span>
+          </div>
+        </div>
+      </ConfirmModal>
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
     </div>
   );
 }

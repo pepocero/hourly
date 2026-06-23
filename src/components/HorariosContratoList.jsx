@@ -2,6 +2,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } 
 import { Edit, Trash2, Calendar, Clock, DollarSign, AlertCircle, CheckCircle2, FileCheck } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 import {
   calcularResumenHorasExtrasMultiples,
   formatDiasLaborables,
@@ -16,7 +17,17 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   const [error, setError] = useState('');
   const [liquidacionMsg, setLiquidacionMsg] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
   const [horarioToDelete, setHorarioToDelete] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+  const closeAlertModal = () => {
+    setAlertModal({ isOpen: false, title: '', message: '', type: 'info' });
+  };
+
+  const showAlert = (title, message, type = 'info') => {
+    setAlertModal({ isOpen: true, title, message, type });
+  };
 
   const contratosMap = useMemo(() => {
     if (!contratos) return {};
@@ -85,12 +96,30 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     }
   };
 
-  const handleRegistrarLiquidacion = async () => {
+  const handleRegistrarLiquidacionClick = () => {
     if (!fechaInicio || !fechaFin || !contratoId) {
-      alert('Selecciona un contrato y un rango de fechas para registrar la liquidación');
+      showAlert(
+        'Datos incompletos',
+        'Selecciona un contrato y un rango de fechas antes de registrar la liquidación.',
+        'warning'
+      );
       return;
     }
 
+    if (!resumenHorasExtras || resumenHorasExtras.detallesPorContrato.length === 0) {
+      showAlert(
+        'Sin datos para liquidar',
+        'No hay horas registradas en el periodo seleccionado para calcular una liquidación.',
+        'info'
+      );
+      return;
+    }
+
+    setShowLiquidacionModal(true);
+  };
+
+  const handleRegistrarLiquidacionConfirm = async () => {
+    setShowLiquidacionModal(false);
     setRegistrandoLiquidacion(true);
     setLiquidacionMsg('');
 
@@ -106,10 +135,10 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
         await loadLiquidaciones();
         if (onDataChange) onDataChange();
       } else {
-        alert(response.error || 'Error al registrar liquidación');
+        showAlert('No se pudo registrar', response.error || 'Error al registrar liquidación', 'error');
       }
     } catch (error) {
-      alert(error.message || 'Error al registrar liquidación');
+      showAlert('No se pudo registrar', error.message || 'Error al registrar liquidación', 'error');
     } finally {
       setRegistrandoLiquidacion(false);
     }
@@ -138,10 +167,10 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
         setShowDeleteModal(false);
         setHorarioToDelete(null);
       } else {
-        alert('Error al eliminar el horario: ' + response.error);
+        showAlert('Error al eliminar', `No se pudo eliminar el horario: ${response.error}`, 'error');
       }
     } catch (error) {
-      alert('Error al eliminar el horario');
+      showAlert('Error al eliminar', 'No se pudo eliminar el horario. Inténtalo de nuevo.', 'error');
       console.error('Error:', error);
     }
   };
@@ -183,6 +212,19 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   const esDefinitiva = resumenHorasExtras?.detallesPorContrato?.some(
     (d) => d.tipoLiquidacion === 'definitiva' || d.semanas?.every((s) => s.esDefinitiva)
   );
+  const esMixta = esAnticipada && esDefinitiva;
+
+  const getLiquidacionConfirmType = () => {
+    if (esMixta) return 'warning';
+    if (esAnticipada) return 'warning';
+    return 'info';
+  };
+
+  const getLiquidacionTipoLabel = () => {
+    if (esMixta) return 'Mixta (anticipada y definitiva)';
+    if (esAnticipada && !esDefinitiva) return 'Anticipada (provisional)';
+    return 'Definitiva';
+  };
 
   if (loading) {
     return (
@@ -461,7 +503,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                   {contratoId && (
                     <button
                       type="button"
-                      onClick={handleRegistrarLiquidacion}
+                      onClick={handleRegistrarLiquidacionClick}
                       disabled={registrandoLiquidacion}
                       className="btn-primary flex items-center justify-center space-x-2 text-sm w-full sm:w-auto"
                     >
@@ -515,13 +557,86 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
         <ConfirmModal
           isOpen={showDeleteModal}
           onClose={handleDeleteCancel}
-          title="Eliminar Horario"
-          message={`¿Estás seguro de que deseas eliminar este horario del ${horarioToDelete?.fecha}?`}
+          title="Eliminar horario"
+          message={`¿Eliminar el horario del ${horarioToDelete?.fecha}? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
+          cancelText="Cancelar"
           onConfirm={handleDeleteConfirm}
           type="danger"
         />
       )}
+
+      {showLiquidacionModal && resumenHorasExtras && (
+        <ConfirmModal
+          isOpen={showLiquidacionModal}
+          onClose={() => setShowLiquidacionModal(false)}
+          onConfirm={handleRegistrarLiquidacionConfirm}
+          title="Confirmar liquidación"
+          message="Revisa el resumen antes de registrar. Una vez guardada, no podrás duplicar la misma liquidación para la misma semana."
+          confirmText="Registrar liquidación"
+          cancelText="Cancelar"
+          type={getLiquidacionConfirmType()}
+        >
+          <div className="space-y-3 text-sm">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Periodo</span>
+                <span className="font-medium text-gray-900">
+                  {formatDate(fechaInicio)} – {formatDate(fechaFin)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Horas extras</span>
+                <span className="font-medium text-orange-600">
+                  {resumenHorasExtras.totalHorasExtras.toFixed(2)}h
+                </span>
+              </div>
+              {resumenHorasExtras.totalImporte > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Importe</span>
+                  <span className="font-medium text-green-600">
+                    ${resumenHorasExtras.totalImporte.toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tipo</span>
+                <span className={`font-medium ${
+                  esAnticipada && !esDefinitiva ? 'text-amber-700' :
+                  esMixta ? 'text-amber-700' : 'text-green-700'
+                }`}>
+                  {getLiquidacionTipoLabel()}
+                </span>
+              </div>
+            </div>
+
+            {(esAnticipada || esMixta) && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
+                <p className="font-medium">Atención: liquidación provisional</p>
+                <p className="mt-1">
+                  {esMixta
+                    ? 'Algunas semanas del periodo aún no han cerrado. Se registrarán como anticipadas y, al cerrar cada semana, se calculará el ajuste correspondiente.'
+                    : 'La semana aún no ha cerrado según el día de cierre del contrato. Las horas extras son provisionales y podrían cambiar al cerrar la semana.'}
+                </p>
+              </div>
+            )}
+
+            {esDefinitiva && !esMixta && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-900 text-xs">
+                El periodo incluye el cierre semanal del contrato. La liquidación se registrará como definitiva.
+              </div>
+            )}
+          </div>
+        </ConfirmModal>
+      )}
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={closeAlertModal}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
     </>
   );
 });

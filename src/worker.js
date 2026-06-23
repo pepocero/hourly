@@ -1207,11 +1207,15 @@ export default {
         try {
           const contratoId = url.searchParams.get('contrato_id');
           const semanaLunes = url.searchParams.get('semana_lunes');
+          const fechaInicio = url.searchParams.get('fecha_inicio');
+          const fechaFin = url.searchParams.get('fecha_fin');
 
           const liquidaciones = await db.getLiquidacionesContrato(
             authResult.userId,
             contratoId ? parseInt(contratoId) : null,
-            semanaLunes || null
+            semanaLunes || null,
+            fechaInicio || null,
+            fechaFin || null
           );
 
           return new Response(JSON.stringify({

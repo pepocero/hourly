@@ -8,6 +8,8 @@ import ProyectoForm from './ProyectoForm';
 import ProyectoDetails from './ProyectoDetails';
 import Informes from './Informes';
 import Contratos from './Contratos';
+import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('horas');
@@ -20,6 +22,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   
   // Referencias para acceder a las funciones de los componentes
   const proyectosListRef = useRef(null);
@@ -56,12 +60,40 @@ function Dashboard() {
     }
   };
 
-  const handleExportarCSV = async () => {
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    return new Date(dateString + 'T00:00:00').toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const handleExportarCSVClick = () => {
+    if (!fechaInicio || !fechaFin) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Fechas requeridas',
+        message: 'Selecciona un rango de fechas en el filtro antes de exportar.',
+        type: 'warning'
+      });
+      return;
+    }
+    setShowExportModal(true);
+  };
+
+  const handleExportarCSVConfirm = async () => {
+    setShowExportModal(false);
     try {
       await apiService.exportarCSV(fechaInicio, fechaFin);
     } catch (error) {
       console.error('Error exportando CSV:', error);
-      alert('Error al exportar el archivo CSV');
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al exportar',
+        message: 'No se pudo generar el archivo CSV. Inténtalo de nuevo.',
+        type: 'error'
+      });
     }
   };
 
@@ -116,7 +148,7 @@ function Dashboard() {
         
         <div className="flex space-x-2 sm:space-x-3">
           <button
-            onClick={handleExportarCSV}
+            onClick={handleExportarCSVClick}
             className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
           >
             <Download className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -334,6 +366,42 @@ function Dashboard() {
           onClose={() => setViewingProyecto(null)}
         />
       )}
+
+      <ConfirmModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onConfirm={handleExportarCSVConfirm}
+        title="Exportar horas a CSV"
+        message="Se descargará un archivo con las horas trabajadas del periodo seleccionado."
+        confirmText="Descargar CSV"
+        cancelText="Cancelar"
+        type="info"
+      >
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Periodo</span>
+            <span className="font-medium text-gray-900">
+              {formatDate(fechaInicio)} – {formatDate(fechaFin)}
+            </span>
+          </div>
+          {resumen && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">Total horas</span>
+              <span className="font-medium text-blue-600">
+                {(resumen.totalHoras || 0).toFixed(1)}h
+              </span>
+            </div>
+          )}
+        </div>
+      </ConfirmModal>
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+      />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock } from 'lucide-react';
 import apiService from '../services/api';
+import ConfirmModal from './ConfirmModal';
+import { useFormConfirmations } from '../hooks/useFormConfirmations';
 
 function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -12,21 +14,41 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [terminaDiaSiguiente, setTerminaDiaSiguiente] = useState(false);
+  const {
+    showDiscardModal,
+    showSaveModal,
+    resetSnapshot,
+    requestClose,
+    confirmDiscard,
+    cancelDiscard,
+    requestSave,
+    confirmSave,
+    cancelSave
+  } = useFormConfirmations({ onClose });
 
   useEffect(() => {
     if (horario) {
-      setFormData({
+      const data = {
         fecha: horario.fecha || new Date().toISOString().split('T')[0],
         hora_entrada: horario.hora_entrada || '',
         hora_salida: horario.hora_salida || '',
         descripcion: horario.descripcion || ''
-      });
-      // Si existe hora de salida y es menor que la de entrada, asumimos que cruza medianoche
+      };
+      setFormData(data);
+      resetSnapshot(data);
       if (horario.hora_entrada && horario.hora_salida && horario.hora_salida < horario.hora_entrada) {
         setTerminaDiaSiguiente(true);
       }
+    } else {
+      const data = {
+        fecha: new Date().toISOString().split('T')[0],
+        hora_entrada: '',
+        hora_salida: '',
+        descripcion: ''
+      };
+      resetSnapshot(data);
     }
-  }, [horario]);
+  }, [horario, resetSnapshot]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,8 +58,7 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const performSave = async () => {
     setLoading(true);
     setError('');
 
@@ -62,11 +83,15 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
       } else {
         setError(response.error || 'Error al guardar');
       }
-    } catch (error) {
-      setError(error.message || 'Error al guardar');
+    } catch (err) {
+      setError(err.message || 'Error al guardar');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e) => {
+    requestSave(e, performSave);
   };
 
   return (
@@ -81,7 +106,8 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
             </h2>
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={() => requestClose(formData)}
             className="text-gray-400 hover:text-gray-600 p-1"
           >
             <X className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -198,7 +224,7 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 pt-3 sm:pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => requestClose(formData)}
               className="btn-secondary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
             >
               Cancelar
@@ -213,6 +239,44 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
           </div>
         </form>
       </div>
+
+      <ConfirmModal
+        isOpen={showDiscardModal}
+        onClose={cancelDiscard}
+        onConfirm={confirmDiscard}
+        title="Descartar cambios"
+        message="Tienes cambios sin guardar en este horario. ¿Quieres cerrar sin guardar?"
+        confirmText="Descartar"
+        cancelText="Seguir editando"
+        type="warning"
+      />
+
+      <ConfirmModal
+        isOpen={showSaveModal}
+        onClose={cancelSave}
+        onConfirm={confirmSave}
+        title={horario ? 'Guardar cambios del horario' : 'Registrar horario'}
+        message={horario
+          ? 'Se actualizará el registro de horario. Esto puede afectar el cálculo de horas extras del periodo.'
+          : 'Se registrará un nuevo horario para el contrato seleccionado.'}
+        confirmText={horario ? 'Guardar cambios' : 'Registrar'}
+        cancelText="Cancelar"
+        type="info"
+      >
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Fecha</span>
+            <span className="font-medium text-gray-900">{formData.fecha}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Horario</span>
+            <span className="font-medium text-gray-900">
+              {formData.hora_entrada || '—'} – {formData.hora_salida || 'En curso'}
+              {terminaDiaSiguiente ? ' (+1 día)' : ''}
+            </span>
+          </div>
+        </div>
+      </ConfirmModal>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'rea
 import { Edit, Trash2, Clock, Euro, Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 import HoraDetailsModal from './HoraDetailsModal';
 
 const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, ref) => {
@@ -10,6 +11,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
   const [error, setError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [horaToDelete, setHoraToDelete] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [horaToView, setHoraToView] = useState(null);
   const [proyectos, setProyectos] = useState([]);
@@ -138,10 +140,20 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
         setShowDeleteModal(false);
         setHoraToDelete(null);
       } else {
-        alert('Error al eliminar la hora trabajada: ' + response.error);
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al eliminar',
+          message: `No se pudo eliminar la hora trabajada: ${response.error}`,
+          type: 'error'
+        });
       }
     } catch (error) {
-      alert('Error al eliminar la hora trabajada');
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al eliminar',
+        message: 'No se pudo eliminar la hora trabajada. Inténtalo de nuevo.',
+        type: 'error'
+      });
       console.error('Error:', error);
     }
   };
@@ -431,6 +443,14 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
         isOpen={showDetailsModal}
         onClose={handleCloseDetailsModal}
         hora={horaToView}
+      />
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
       />
     </div>
   );

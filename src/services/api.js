@@ -286,10 +286,12 @@ class ApiService {
 
   // ========== LIQUIDACIONES DE CONTRATO ==========
 
-  async getLiquidacionesContrato(contratoId = null, semanaLunes = null) {
+  async getLiquidacionesContrato(contratoId = null, semanaLunes = null, fechaInicio = null, fechaFin = null) {
     const params = new URLSearchParams();
     if (contratoId) params.append('contrato_id', contratoId);
     if (semanaLunes) params.append('semana_lunes', semanaLunes);
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
 
     const endpoint = `/api/liquidaciones-contrato${params.toString() ? `?${params.toString()}` : ''}`;
     return this.request(endpoint);

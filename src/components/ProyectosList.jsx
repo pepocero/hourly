@@ -2,6 +2,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'rea
 import { Edit, Trash2, Calendar, Euro, Eye } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 
 const ProyectosList = forwardRef(({ onEdit, onDataChange, onViewDetails }, ref) => {
   const [proyectos, setProyectos] = useState([]);
@@ -9,6 +10,7 @@ const ProyectosList = forwardRef(({ onEdit, onDataChange, onViewDetails }, ref) 
   const [error, setError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [proyectoToDelete, setProyectoToDelete] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
   useEffect(() => {
     loadProyectos();
@@ -50,10 +52,20 @@ const ProyectosList = forwardRef(({ onEdit, onDataChange, onViewDetails }, ref) 
         setShowDeleteModal(false);
         setProyectoToDelete(null);
       } else {
-        alert('Error al eliminar el proyecto: ' + response.error);
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al eliminar',
+          message: `No se pudo eliminar el proyecto: ${response.error}`,
+          type: 'error'
+        });
       }
     } catch (error) {
-      alert('Error al eliminar el proyecto');
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al eliminar',
+        message: 'No se pudo eliminar el proyecto. Inténtalo de nuevo.',
+        type: 'error'
+      });
       console.error('Error:', error);
     }
   };
@@ -172,6 +184,14 @@ const ProyectosList = forwardRef(({ onEdit, onDataChange, onViewDetails }, ref) 
         confirmText="Eliminar"
         cancelText="Cancelar"
         type="danger"
+      />
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '', type: 'info' })}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
       />
     </div>
   );
