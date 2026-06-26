@@ -1590,8 +1590,57 @@ export default {
         }
       }
 
+      // PATCH /api/horas/:id/pagado - Marcar hora como pagada o pendiente
+      if (url.pathname.match(/^\/api\/horas\/\d+\/pagado$/) && request.method === 'PATCH') {
+        try {
+          const id = parseInt(url.pathname.split('/')[3], 10);
+          const { pagado } = await request.json();
+
+          if (typeof pagado !== 'boolean') {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'El campo pagado (true/false) es requerido'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const result = await db.setHoraPagado(id, authResult.userId, pagado);
+
+          if (!result.success || result.meta.changes === 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Hora trabajada no encontrada o no autorizada'
+            }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            data: { id, pagado: pagado ? 1 : 0 },
+            message: pagado ? 'Marcada como pagada' : 'Marcada como pendiente de pago'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/horas/:id/pagado (PATCH):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
       // PUT /api/horas/:id - Actualizar hora trabajada
-      if (url.pathname.startsWith('/api/horas/') && request.method === 'PUT') {
+      if (url.pathname.match(/^\/api\/horas\/\d+$/) && request.method === 'PUT') {
         try {
           const id = url.pathname.split('/').pop();
           const { proyecto_id, fecha, hora_inicio, hora_fin, cantidad_horas, descripcion, tarifa_aplicada, total } = await request.json();
@@ -1697,7 +1746,7 @@ export default {
       }
 
       // DELETE /api/horas/:id - Eliminar hora trabajada
-      if (url.pathname.startsWith('/api/horas/') && request.method === 'DELETE') {
+      if (url.pathname.match(/^\/api\/horas\/\d+$/) && request.method === 'DELETE') {
         try {
           const id = url.pathname.split('/').pop();
           const result = await db.deleteHora(parseInt(id), authResult.userId);

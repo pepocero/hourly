@@ -1,12 +1,23 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Edit, Trash2, Clock, Euro, Eye, ChevronUp, ChevronDown } from 'lucide-react';
+import { Edit, Trash2, Clock, Euro, Eye, ChevronUp, ChevronDown, CheckCircle2, CircleDollarSign } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HoraDetailsModal from './HoraDetailsModal';
 
+function isHoraPagada(hora) {
+  return hora.pagado === 1 || hora.pagado === true || hora.pagado === '1';
+}
+
+function getFilaPagadoClass(pagada) {
+  return pagada
+    ? 'bg-green-50 border-l-4 border-l-green-500 hover:bg-green-100/80'
+    : 'hover:bg-gray-50';
+}
+
 const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, ref) => {
   const [horas, setHoras] = useState([]);
+  const [horasSinFiltrar, setHorasSinFiltrar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -16,6 +27,8 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
   const [horaToView, setHoraToView] = useState(null);
   const [proyectos, setProyectos] = useState([]);
   const [proyectoFiltro, setProyectoFiltro] = useState('');
+  const [estadoPagoFiltro, setEstadoPagoFiltro] = useState('todos');
+  const [pagadoUpdatingId, setPagadoUpdatingId] = useState(null);
   const [sortField, setSortField] = useState('fecha');
   const [sortDirection, setSortDirection] = useState('asc');
 
@@ -25,7 +38,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
 
   useEffect(() => {
     loadHoras();
-  }, [fechaInicio, fechaFin, proyectoFiltro, sortField, sortDirection]);
+  }, [fechaInicio, fechaFin, proyectoFiltro, estadoPagoFiltro, sortField, sortDirection]);
 
   useImperativeHandle(ref, () => ({
     loadHoras
@@ -47,18 +60,23 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
       setLoading(true);
       const response = await apiService.getHoras(fechaInicio, fechaFin);
       if (response.success) {
+        setHorasSinFiltrar(response.data);
         let horasFiltradas = response.data;
-        
-        // Aplicar filtro por proyecto si está seleccionado
+
         if (proyectoFiltro) {
-          horasFiltradas = response.data.filter(hora => 
+          horasFiltradas = horasFiltradas.filter(hora =>
             hora.proyecto_id === parseInt(proyectoFiltro)
           );
         }
-        
-        // Aplicar ordenamiento
+
+        if (estadoPagoFiltro === 'pagados') {
+          horasFiltradas = horasFiltradas.filter(hora => isHoraPagada(hora));
+        } else if (estadoPagoFiltro === 'pendientes') {
+          horasFiltradas = horasFiltradas.filter(hora => !isHoraPagada(hora));
+        }
+
         horasFiltradas = sortHoras(horasFiltradas, sortField, sortDirection);
-        
+
         setHoras(horasFiltradas);
       }
     } catch (error) {
@@ -66,6 +84,62 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const contadoresPago = horasSinFiltrar.reduce(
+    (acc, hora) => {
+      if (isHoraPagada(hora)) {
+        acc.pagados += 1;
+      } else {
+        acc.pendientes += 1;
+      }
+      return acc;
+    },
+    { pagados: 0, pendientes: 0 }
+  );
+
+  const handleTogglePagado = async (hora) => {
+    const nuevoEstado = !isHoraPagada(hora);
+    setPagadoUpdatingId(hora.id);
+
+    try {
+      const response = await apiService.setHoraPagado(hora.id, nuevoEstado);
+      if (response.success) {
+        setHorasSinFiltrar((prev) =>
+          prev.map((h) => (h.id === hora.id ? { ...h, pagado: nuevoEstado ? 1 : 0 } : h))
+        );
+        setHoras((prev) => {
+          const actualizada = prev.map((h) =>
+            h.id === hora.id ? { ...h, pagado: nuevoEstado ? 1 : 0 } : h
+          );
+          if (estadoPagoFiltro === 'pagados' && !nuevoEstado) {
+            return actualizada.filter((h) => h.id !== hora.id);
+          }
+          if (estadoPagoFiltro === 'pendientes' && nuevoEstado) {
+            return actualizada.filter((h) => h.id !== hora.id);
+          }
+          return actualizada;
+        });
+        if (onDataChange) onDataChange();
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al actualizar',
+          message: response.error || 'No se pudo actualizar el estado de pago.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al actualizar',
+        message: 'No se pudo actualizar el estado de pago. Inténtalo de nuevo.',
+        type: 'error'
+      });
+      console.error('Error:', error);
+    } finally {
+      setPagadoUpdatingId(null);
     }
   };
 
@@ -219,7 +293,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
     );
   }
 
-  if (horas.length === 0) {
+  if (horasSinFiltrar.length === 0) {
     return (
       <div className="card">
         <div className="text-center py-8">
@@ -232,30 +306,71 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
 
   return (
     <div className="card">
-      {/* Filtro por proyecto */}
-      <div className="mb-3 sm:mb-4">
-        <label htmlFor="proyecto-filtro" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-          Filtrar por proyecto
-        </label>
-        <select
-          id="proyecto-filtro"
-          value={proyectoFiltro}
-          onChange={(e) => setProyectoFiltro(e.target.value)}
-          className="input-field w-full sm:max-w-xs text-sm sm:text-base"
-        >
-          <option value="">Todos los proyectos</option>
-          {proyectos.map((proyecto) => (
-            <option key={proyecto.id} value={proyecto.id}>
-              {proyecto.nombre}
-            </option>
-          ))}
-        </select>
+      {/* Filtros */}
+      <div className="mb-3 sm:mb-4 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="proyecto-filtro" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+              Filtrar por proyecto
+            </label>
+            <select
+              id="proyecto-filtro"
+              value={proyectoFiltro}
+              onChange={(e) => setProyectoFiltro(e.target.value)}
+              className="input-field w-full text-sm sm:text-base"
+            >
+              <option value="">Todos los proyectos</option>
+              {proyectos.map((proyecto) => (
+                <option key={proyecto.id} value={proyecto.id}>
+                  {proyecto.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="estado-pago-filtro" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+              Estado de pago
+            </label>
+            <select
+              id="estado-pago-filtro"
+              value={estadoPagoFiltro}
+              onChange={(e) => setEstadoPagoFiltro(e.target.value)}
+              className="input-field w-full text-sm sm:text-base"
+            >
+              <option value="todos">Todos ({horasSinFiltrar.length})</option>
+              <option value="pendientes">Pendientes ({contadoresPago.pendientes})</option>
+              <option value="pagados">Pagados ({contadoresPago.pagados})</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-gray-600">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-green-100 border border-green-400"></span>
+            Pagado
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-white border border-gray-200"></span>
+            Pendiente de cobro
+          </span>
+        </div>
       </div>
-      
+
+      {horas.length === 0 ? (
+        <div className="text-center py-8 border border-dashed border-gray-200 rounded-lg">
+          <CircleDollarSign className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600">No hay registros con el filtro seleccionado</p>
+        </div>
+      ) : (
+        <>
       {/* Vista móvil - Tarjetas */}
       <div className="block sm:hidden space-y-3">
-        {horas.map((hora) => (
-          <div key={hora.id} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+        {horas.map((hora) => {
+          const pagada = isHoraPagada(hora);
+          return (
+          <div
+            key={hora.id}
+            className={`border rounded-lg p-3 shadow-sm ${pagada ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}
+          >
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center">
                 <div
@@ -301,14 +416,27 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
               </div>
             </div>
             
-            <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <label className="inline-flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pagada}
+                  disabled={pagadoUpdatingId === hora.id}
+                  onChange={() => handleTogglePagado(hora)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                <span className={pagada ? 'text-green-700 font-medium' : ''}>
+                  {pagada ? 'Pagado' : 'Pendiente'}
+                </span>
+              </label>
               <div className="flex items-center text-sm font-semibold text-green-600">
                 <Euro className="h-3 w-3 mr-1" />
                 {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Vista desktop - Tabla */}
@@ -361,14 +489,19 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
                   {getSortIcon('total')}
                 </button>
               </th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Pagado
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {horas.map((hora) => (
-              <tr key={hora.id} className="hover:bg-gray-50">
+            {horas.map((hora) => {
+              const pagada = isHoraPagada(hora);
+              return (
+              <tr key={hora.id} className={getFilaPagadoClass(pagada)}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatDate(hora.fecha)}
                 </td>
@@ -394,6 +527,23 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
                     <Euro className="h-4 w-4 text-green-600 mr-1" />
                     {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'}
                   </div>
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-center">
+                  <label
+                    className="inline-flex items-center justify-center cursor-pointer"
+                    title={pagada ? 'Marcar como pendiente de cobro' : 'Marcar como pagado'}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={pagada}
+                      disabled={pagadoUpdatingId === hora.id}
+                      onChange={() => handleTogglePagado(hora)}
+                      className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                    />
+                  </label>
+                  {pagada && (
+                    <CheckCircle2 className="inline-block h-4 w-4 text-green-600 ml-1 align-middle" aria-hidden="true" />
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
@@ -421,10 +571,13 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
+        </>
+      )}
       
       {/* Modal de confirmación para eliminar */}
       <ConfirmModal

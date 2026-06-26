@@ -174,6 +174,13 @@ class ApiService {
     });
   }
 
+  async setHoraPagado(id, pagado) {
+    return this.request(`/api/horas/${id}/pagado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pagado: !!pagado }),
+    });
+  }
+
   async getResumenHoras(fechaInicio = null, fechaFin = null) {
     const params = new URLSearchParams();
     if (fechaInicio) params.append('fecha_inicio', fechaInicio);

@@ -109,6 +109,15 @@ export class DatabaseService {
     return await stmt.bind(proyectoId, fecha, horaInicio, horaFin, duracionMinutos, descripcion, tarifaAplicada, total, horaId, userId).run();
   }
 
+  async setHoraPagado(horaId, userId, pagado) {
+    const stmt = this.db.prepare(`
+      UPDATE horas_trabajadas
+      SET pagado = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(pagado ? 1 : 0, horaId, userId).run();
+  }
+
   async deleteHora(horaId, userId) {
     const stmt = this.db.prepare(`
       DELETE FROM horas_trabajadas WHERE id = ? AND user_id = ?

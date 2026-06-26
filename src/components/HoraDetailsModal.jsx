@@ -1,8 +1,10 @@
 import React from 'react';
-import { X, Calendar, Clock, Euro, FileText, User, Tag } from 'lucide-react';
+import { X, Calendar, Clock, Euro, FileText, Tag, CheckCircle2, CircleDollarSign } from 'lucide-react';
 
 function HoraDetailsModal({ isOpen, onClose, hora }) {
   if (!isOpen || !hora) return null;
+
+  const pagada = hora.pagado === 1 || hora.pagado === true || hora.pagado === '1';
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -131,6 +133,21 @@ function HoraDetailsModal({ isOpen, onClose, hora }) {
                     {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'} €
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Estado de pago */}
+            <div className={`rounded-lg p-3 sm:p-4 flex items-center gap-3 ${pagada ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+              {pagada ? (
+                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              ) : (
+                <CircleDollarSign className="h-5 w-5 text-amber-600 flex-shrink-0" />
+              )}
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-500">Estado de pago</p>
+                <p className={`text-sm sm:text-base font-semibold ${pagada ? 'text-green-700' : 'text-amber-700'}`}>
+                  {pagada ? 'Pagado' : 'Pendiente de cobro'}
+                </p>
               </div>
             </div>
 
