@@ -10,7 +10,7 @@ import Informes from './Informes';
 import Contratos from './Contratos';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
-import { formatFechaEU } from '../utils/formatFecha';
+import { formatFechaEU, formatEuro } from '../utils/formatFecha';
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('horas');
@@ -176,7 +176,7 @@ function Dashboard() {
             <div className="ml-2 sm:ml-3 lg:ml-4">
               <p className="text-xs sm:text-sm font-medium text-gray-600">Total Ganancias</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                {loading ? '...' : (resumen?.totalGanancias || 0).toFixed(2)}
+                {loading ? '...' : formatEuro(resumen?.totalGanancias || 0)}
               </p>
             </div>
           </div>

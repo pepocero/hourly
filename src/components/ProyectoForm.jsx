@@ -3,6 +3,7 @@ import { X, Calendar } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import { useFormConfirmations } from '../hooks/useFormConfirmations';
+import { formatEuro } from '../utils/formatFecha';
 
 function ProyectoForm({ proyecto, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -243,7 +244,7 @@ function ProyectoForm({ proyecto, onClose, onSave }) {
           {formData.tarifa_hora !== '' && (
             <div className="flex justify-between">
               <span className="text-gray-600">Tarifa/hora</span>
-              <span className="font-medium text-gray-900">${formData.tarifa_hora}</span>
+              <span className="font-medium text-gray-900">{formatEuro(formData.tarifa_hora)}</span>
             </div>
           )}
         </div>

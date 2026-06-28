@@ -3,6 +3,7 @@ import { Edit, Trash2, Calendar, Euro, Eye } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
+import { formatEuroPorHora } from '../utils/formatFecha';
 
 const ProyectosList = forwardRef(({ onEdit, onDataChange, onViewDetails }, ref) => {
   const [proyectos, setProyectos] = useState([]);
@@ -165,7 +166,7 @@ const ProyectosList = forwardRef(({ onEdit, onDataChange, onViewDetails }, ref) 
           <div className="flex items-center justify-between">
             <div className="flex items-center text-sm text-gray-500">
               <Euro className="h-4 w-4 mr-1" />
-              <span>{proyecto.tarifa_hora || '0.00'}/hora</span>
+              <span>{formatEuroPorHora(proyecto.tarifa_hora || 0)}</span>
             </div>
             <span className="text-xs text-gray-400">
               {new Date(proyecto.created_at).toLocaleDateString('es-ES')}

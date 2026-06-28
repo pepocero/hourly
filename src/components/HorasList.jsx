@@ -4,7 +4,7 @@ import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HoraDetailsModal from './HoraDetailsModal';
-import { formatFechaEU } from '../utils/formatFecha';
+import { formatFechaEU, formatEuro } from '../utils/formatFecha';
 
 function isHoraPagada(hora) {
   return hora.pagado === 1 || hora.pagado === true || hora.pagado === '1';
@@ -426,7 +426,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
               </label>
               <div className="flex items-center text-sm font-semibold text-green-600">
                 <Euro className="h-3 w-3 mr-1" />
-                {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'}
+                {hora.total ? formatEuro(hora.total) : '€0.00'}
               </div>
             </div>
           </div>
@@ -520,7 +520,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div className="flex items-center">
                     <Euro className="h-4 w-4 text-green-600 mr-1" />
-                    {hora.total ? parseFloat(hora.total).toFixed(2) : '0.00'}
+                    {hora.total ? formatEuro(hora.total) : '€0.00'}
                   </div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-center">

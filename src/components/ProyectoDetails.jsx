@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, Euro, Filter, ArrowLeft } from 'lucide-react';
 import apiService from '../services/api';
-import { formatFechaEU } from '../utils/formatFecha';
+import { formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 
 function ProyectoDetails({ proyecto, onClose }) {
   const [horas, setHoras] = useState([]);
@@ -90,7 +90,7 @@ function ProyectoDetails({ proyecto, onClose }) {
                 {proyecto.nombre}
               </h2>
               <p className="text-sm text-gray-500">
-                {proyecto.tarifa_hora}/hora
+                {formatEuroPorHora(proyecto.tarifa_hora)}
               </p>
             </div>
           </div>
@@ -160,7 +160,7 @@ function ProyectoDetails({ proyecto, onClose }) {
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Ganancias</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {resumen.totalGanancias.toFixed(2)}
+                      {formatEuro(resumen.totalGanancias)}
                     </p>
                   </div>
                 </div>
@@ -248,7 +248,7 @@ function ProyectoDetails({ proyecto, onClose }) {
                           {formatHours(hora.duracion_minutos)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {hora.total?.toFixed(2) || '0.00'}
+                          {formatEuro(hora.total)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {hora.descripcion || '-'}
@@ -274,7 +274,7 @@ function ProyectoDetails({ proyecto, onClose }) {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                           <div className="flex items-center">
                             <Euro className="h-4 w-4 text-white mr-1" />
-                            {resumen?.totalGanancias.toFixed(2) || '0.00'}
+                            {formatEuro(resumen?.totalGanancias)}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm font-bold text-white">

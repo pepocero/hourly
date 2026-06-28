@@ -72,7 +72,7 @@ export function createExportRoutes(db, jwtSecret) {
 Resumen:
 - Total de registros: ${horas.results.length}
 - Total de horas: ${(totalHoras / 60).toFixed(2)}
-- Total de ganancias: $${totalGanancias.toFixed(2)}
+- Total de ganancias: €${totalGanancias.toFixed(2)}
 `;
 
         const csvWithSummary = csvContent + '\n\n' + resumen;

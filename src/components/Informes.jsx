@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2 } from 'lucide-react';
 import apiService from '../services/api';
 import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek } from '../utils/contratoHoras';
-import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro } from '../utils/formatFecha';
+import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 
@@ -406,7 +406,6 @@ function Informes() {
             subtitle,
             fechaInicio,
             fechaFin,
-            horas,
             subtotalesPorProyecto,
             {
               totalHoras: totalGeneralHoras,
@@ -416,15 +415,19 @@ function Informes() {
             }
           );
         } else if (tipoDatos === 'contratos') {
-          pdfService.generatePDF(
+          const totalHorasExtrasContratos = Object.values(subtotalesPorContrato).reduce(
+            (sum, s) => sum + (s.horasExtras || 0),
+            0
+          );
+          pdfService.generateContratosPDF(
             title,
             subtitle,
             fechaInicio,
             fechaFin,
-            horariosContrato,
             subtotalesPorContrato,
             {
               totalHoras: totalGeneralHoras,
+              totalHorasExtras: totalHorasExtrasContratos,
               totalGanancias: totalGeneralGanancias,
               totalRegistros: horariosContrato.length,
               promedioMinutos: horariosContrato.length > 0 ? totalGeneralMinutos / horariosContrato.length : 0
@@ -741,7 +744,7 @@ function Informes() {
                   {tipoDatos === 'contratos' ? 'Total Horas Extras' : 'Total Ganancias'}
                 </p>
                 <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                  {tipoDatos === 'contratos' ? `$${totalGeneralGanancias.toFixed(2)}` : totalGeneralGanancias.toFixed(2)}
+                  {formatEuro(totalGeneralGanancias)}
                 </p>
               </div>
             </div>
@@ -832,7 +835,7 @@ function Informes() {
               <div className="ml-2 sm:ml-3 lg:ml-4">
                 <p className="text-xs sm:text-sm font-medium text-gray-600">Importe total</p>
                 <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">
-                  ${totalImporteLiquidaciones.toFixed(2)}
+                  {formatEuro(totalImporteLiquidaciones)}
                 </p>
               </div>
             </div>
@@ -906,7 +909,7 @@ function Informes() {
                       <div className="flex items-center space-x-4 text-sm">
                         <span className="text-orange-600 font-medium">{horasExtrasGrupo.toFixed(2)}h extras</span>
                         {importeGrupo !== 0 && (
-                          <span className="text-green-600 font-medium">${importeGrupo.toFixed(2)}</span>
+                          <span className="text-green-600 font-medium">{formatEuro(importeGrupo)}</span>
                         )}
                       </div>
                       <button
@@ -942,7 +945,7 @@ function Informes() {
                             </span>
                             {parseFloat(liq.importe) !== 0 && (
                               <span className={`font-medium ${parseFloat(liq.importe) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ${parseFloat(liq.importe).toFixed(2)}
+                                {formatEuro(liq.importe)}
                               </span>
                             )}
                           </div>
@@ -982,7 +985,7 @@ function Informes() {
                   <div className="text-right">
                     <div className="text-sm font-semibold text-green-600">
                       <Euro className="h-3 w-3 inline mr-1" />
-                      {subtotal.totalGanancias.toFixed(2)}
+                      {formatEuro(subtotal.totalGanancias)}
                     </div>
                     <div className="text-xs text-gray-500">
                       {subtotal.totalHoras.toFixed(1)}h
@@ -1006,7 +1009,7 @@ function Informes() {
                         </div>
                         <div className="text-xs text-green-600">
                           <Euro className="h-2 w-2 inline mr-1" />
-                          {parseFloat(hora.total || 0).toFixed(2)}
+                          {formatEuro(hora.total)}
                         </div>
                       </div>
                     </div>
@@ -1076,7 +1079,7 @@ function Informes() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center">
                             <Euro className="h-4 w-4 text-green-600 mr-1" />
-                            {parseFloat(hora.total || 0).toFixed(2)}
+                            {formatEuro(hora.total)}
                           </div>
                         </td>
                       </tr>
@@ -1095,7 +1098,7 @@ function Informes() {
                       <td className="px-6 py-3 text-sm text-gray-900">
                         <div className="flex items-center">
                           <Euro className="h-4 w-4 text-green-600 mr-1" />
-                          {subtotal.totalGanancias.toFixed(2)}
+                          {formatEuro(subtotal.totalGanancias)}
                         </div>
                       </td>
                     </tr>
@@ -1109,7 +1112,7 @@ function Informes() {
                   <td className="px-6 py-3 text-sm text-gray-900">
                     <div className="flex items-center">
                       <Euro className="h-4 w-4 text-green-600 mr-1" />
-                      {totalGeneralGanancias.toFixed(2)}
+                      {formatEuro(totalGeneralGanancias)}
                     </div>
                   </td>
                 </tr>
@@ -1140,7 +1143,7 @@ function Informes() {
                   <div className="text-right">
                     <div className="text-lg font-bold text-green-600">
                       <Euro className="h-4 w-4 inline mr-1" />
-                      {subtotal.totalGanancias.toFixed(2)}
+                      {formatEuro(subtotal.totalGanancias)}
                     </div>
                     <div className="text-sm text-gray-500">
                       {subtotal.totalHoras.toFixed(1)} horas • {subtotal.registros.length} registros
@@ -1158,7 +1161,7 @@ function Informes() {
               <div className="text-right">
                 <div className="text-xl font-bold text-green-600">
                   <Euro className="h-5 w-5 inline mr-1" />
-                  {totalGeneralGanancias.toFixed(2)}
+                  {formatEuro(totalGeneralGanancias)}
                 </div>
                 <div className="text-sm text-gray-600">
                   {totalGeneralHoras.toFixed(1)} horas • {horas.length} registros
@@ -1187,7 +1190,7 @@ function Informes() {
               <div>
                 <div className="text-2xl font-bold text-green-600">
                   <Euro className="h-6 w-6 inline mr-1" />
-                  {totalGeneralGanancias.toFixed(2)}
+                  {formatEuro(totalGeneralGanancias)}
                 </div>
                 <div className="text-sm text-gray-600">Total Ganancias</div>
               </div>
@@ -1231,11 +1234,11 @@ function Informes() {
                   <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
                     <p className="text-xs text-gray-600 mb-1">Horas Extras</p>
                     <p className="text-lg font-bold text-orange-600">{subtotal.horasExtras.toFixed(2)}h</p>
-                    <p className="text-xs text-gray-500">${subtotal.valorHoraExtra}/h</p>
+                    <p className="text-xs text-gray-500">{formatEuroPorHora(subtotal.valorHoraExtra)}</p>
                   </div>
                   <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                     <p className="text-xs text-gray-600 mb-1">Total a Cobrar</p>
-                    <p className="text-lg font-bold text-purple-600">${subtotal.totalExtras.toFixed(2)}</p>
+                    <p className="text-lg font-bold text-purple-600">{formatEuro(subtotal.totalExtras)}</p>
                     <p className="text-xs text-gray-500">horas extras</p>
                   </div>
                 </div>
@@ -1268,7 +1271,7 @@ function Informes() {
                 <div className="text-right">
                   <div className="text-2xl font-bold text-purple-600">
                     <Euro className="h-6 w-6 inline mr-1" />
-                    {totalGeneralGanancias.toFixed(2)}
+                    {formatEuro(totalGeneralGanancias)}
                   </div>
                   <div className="text-sm text-gray-600">
                     {totalGeneralHoras.toFixed(1)} horas totales • {totalRegistros} registros

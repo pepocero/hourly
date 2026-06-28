@@ -95,54 +95,51 @@ class PDFService {
     });
   }
 
-  // Agregar tabla de horas trabajadas (versión simplificada sin autoTable)
-  addHoursTable(horas, subtotalesPorProyecto) {
+  // Agregar tabla de horas trabajadas (proyectos)
+  addHoursTable(subtotalesPorProyecto) {
     if (!this.doc) return;
 
     const yStart = 160;
     let currentY = yStart;
 
-    // Título de la tabla
     this.doc.setFontSize(14);
     this.doc.setFont('helvetica', 'bold');
     this.doc.text('Detalle de Horas Trabajadas', 20, currentY);
     currentY += 15;
 
-    // Encabezados de la tabla
     this.doc.setFontSize(10);
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFillColor(59, 130, 246);
     this.doc.rect(20, currentY - 5, 170, 8, 'F');
     this.doc.setTextColor(255, 255, 255);
-    
+
     const headers = ['Fecha', 'Proyecto', 'Inicio', 'Fin', 'Duración', 'Total'];
     const colWidths = [25, 40, 20, 20, 25, 25];
     let xPos = 20;
-    
+
     headers.forEach((header, index) => {
       this.doc.text(header, xPos + 2, currentY);
       xPos += colWidths[index];
     });
-    
+
     currentY += 10;
     this.doc.setTextColor(0, 0, 0);
 
-    // Datos de la tabla
     this.doc.setFontSize(8);
     this.doc.setFont('helvetica', 'normal');
-    
-    Object.entries(subtotalesPorProyecto).forEach(([proyectoId, subtotal]) => {
-      // Agregar filas del proyecto
-      subtotal.registros.forEach(hora => {
-        if (currentY > 250) { // Nueva página si es necesario
+
+    Object.entries(subtotalesPorProyecto).forEach(([, subtotal]) => {
+      subtotal.registros.forEach((hora) => {
+        if (currentY > 250) {
           this.doc.addPage();
           currentY = 20;
         }
 
         xPos = 20;
+        const nombreProyecto = hora.proyecto_nombre || 'Sin proyecto';
         const rowData = [
           this.formatDate(hora.fecha),
-          hora.proyecto_nombre.substring(0, 15) + (hora.proyecto_nombre.length > 15 ? '...' : ''),
+          this.truncateText(nombreProyecto, 15),
           this.formatTime(hora.hora_inicio),
           this.formatTime(hora.hora_fin),
           this.formatDuration(hora.duracion_minutos),
@@ -150,14 +147,13 @@ class PDFService {
         ];
 
         rowData.forEach((data, index) => {
-          this.doc.text(data, xPos + 2, currentY);
+          this.doc.text(String(data), xPos + 2, currentY);
           xPos += colWidths[index];
         });
 
         currentY += 6;
       });
 
-      // Agregar subtotal del proyecto
       if (currentY > 250) {
         this.doc.addPage();
         currentY = 20;
@@ -166,30 +162,169 @@ class PDFService {
       this.doc.setFont('helvetica', 'bold');
       this.doc.setFillColor(240, 240, 240);
       this.doc.rect(20, currentY - 3, 170, 6, 'F');
-      
+
       this.doc.text(`Subtotal ${subtotal.nombre}:`, 25, currentY);
-      this.doc.text(`€${subtotal.totalGanancias.toFixed(2)}`, 165, currentY);
-      
+      this.doc.text(`€${(subtotal.totalGanancias || 0).toFixed(2)}`, 165, currentY);
+
       currentY += 10;
       this.doc.setFont('helvetica', 'normal');
     });
 
-    // Total general
     if (currentY > 250) {
       this.doc.addPage();
       currentY = 20;
     }
 
-    const totalGeneral = Object.values(subtotalesPorProyecto).reduce((sum, subtotal) => sum + subtotal.totalGanancias, 0);
-    
+    const totalGeneral = Object.values(subtotalesPorProyecto).reduce(
+      (sum, subtotal) => sum + (subtotal.totalGanancias || 0),
+      0
+    );
+
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFillColor(34, 197, 94);
     this.doc.rect(20, currentY - 3, 170, 8, 'F');
     this.doc.setTextColor(255, 255, 255);
-    
+
     this.doc.text('TOTAL GENERAL:', 25, currentY);
     this.doc.text(`€${totalGeneral.toFixed(2)}`, 165, currentY);
-    
+
+    this.doc.setTextColor(0, 0, 0);
+  }
+
+  addContratosSummary(resumen) {
+    if (!this.doc) return;
+
+    const yStart = 90;
+    const colWidth = 40;
+    const rowHeight = 15;
+
+    this.doc.setFontSize(14);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('Resumen Ejecutivo', 20, yStart);
+
+    const metrics = [
+      { label: 'Total Horas', value: `${resumen.totalHoras.toFixed(1)}h`, color: [59, 130, 246] },
+      { label: 'Horas Extras', value: `${(resumen.totalHorasExtras || 0).toFixed(2)}h`, color: [249, 115, 22] },
+      { label: 'Registros', value: resumen.totalRegistros.toString(), color: [168, 85, 247] },
+      { label: 'Importe Extras', value: `€${resumen.totalGanancias.toFixed(2)}`, color: [34, 197, 94] }
+    ];
+
+    metrics.forEach((metric, index) => {
+      const x = 20 + (index % 2) * colWidth;
+      const y = yStart + 15 + Math.floor(index / 2) * rowHeight;
+
+      this.doc.setFillColor(...metric.color);
+      this.doc.rect(x, y - 8, colWidth - 5, 12, 'F');
+
+      this.doc.setFontSize(10);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.text(metric.label, x + 2, y - 2);
+
+      this.doc.setFontSize(12);
+      this.doc.text(metric.value, x + 2, y + 4);
+
+      this.doc.setTextColor(0, 0, 0);
+    });
+  }
+
+  addContratosTable(subtotalesPorContrato) {
+    if (!this.doc) return;
+
+    const yStart = 160;
+    let currentY = yStart;
+
+    this.doc.setFontSize(14);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('Detalle de Horarios de Contrato', 20, currentY);
+    currentY += 15;
+
+    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFillColor(139, 92, 246);
+    this.doc.rect(20, currentY - 5, 170, 8, 'F');
+    this.doc.setTextColor(255, 255, 255);
+
+    const headers = ['Fecha', 'Contrato', 'Entrada', 'Salida', 'Duración'];
+    const colWidths = [28, 45, 22, 22, 28];
+    let xPos = 20;
+
+    headers.forEach((header, index) => {
+      this.doc.text(header, xPos + 2, currentY);
+      xPos += colWidths[index];
+    });
+
+    currentY += 10;
+    this.doc.setTextColor(0, 0, 0);
+
+    this.doc.setFontSize(8);
+    this.doc.setFont('helvetica', 'normal');
+
+    Object.entries(subtotalesPorContrato).forEach(([, subtotal]) => {
+      subtotal.registros.forEach((horario) => {
+        if (currentY > 250) {
+          this.doc.addPage();
+          currentY = 20;
+        }
+
+        xPos = 20;
+        const nombreContrato = horario.contrato_nombre || subtotal.nombre || 'Sin contrato';
+        const rowData = [
+          this.formatDate(horario.fecha),
+          this.truncateText(nombreContrato, 18),
+          this.formatTime(horario.hora_entrada),
+          this.formatTime(horario.hora_salida),
+          this.formatDuration(horario.duracion_minutos)
+        ];
+
+        rowData.forEach((data, index) => {
+          this.doc.text(String(data), xPos + 2, currentY);
+          xPos += colWidths[index];
+        });
+
+        currentY += 6;
+      });
+
+      if (currentY > 250) {
+        this.doc.addPage();
+        currentY = 20;
+      }
+
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFillColor(240, 240, 240);
+      this.doc.rect(20, currentY - 3, 170, 6, 'F');
+
+      const extrasLabel = `${(subtotal.horasExtras || 0).toFixed(2)}h extras`;
+      const importeLabel = `€${(subtotal.totalExtras || 0).toFixed(2)}`;
+      this.doc.text(`Subtotal ${subtotal.nombre}: ${extrasLabel}`, 25, currentY);
+      this.doc.text(importeLabel, 165, currentY);
+
+      currentY += 10;
+      this.doc.setFont('helvetica', 'normal');
+    });
+
+    if (currentY > 250) {
+      this.doc.addPage();
+      currentY = 20;
+    }
+
+    const totalExtras = Object.values(subtotalesPorContrato).reduce(
+      (sum, subtotal) => sum + (subtotal.totalExtras || 0),
+      0
+    );
+    const totalHorasExtras = Object.values(subtotalesPorContrato).reduce(
+      (sum, subtotal) => sum + (subtotal.horasExtras || 0),
+      0
+    );
+
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFillColor(139, 92, 246);
+    this.doc.rect(20, currentY - 3, 170, 8, 'F');
+    this.doc.setTextColor(255, 255, 255);
+
+    this.doc.text(`TOTAL (${totalHorasExtras.toFixed(2)}h extras):`, 25, currentY);
+    this.doc.text(`€${totalExtras.toFixed(2)}`, 165, currentY);
+
     this.doc.setTextColor(0, 0, 0);
   }
 
@@ -211,17 +346,26 @@ class PDFService {
     this.doc.text('https://hourly.pepocero.workers.dev', 20, pageHeight - 10);
   }
 
-  // Generar y descargar PDF
-  generatePDF(title, subtitle, fechaInicio, fechaFin, horas, subtotalesPorProyecto, resumen) {
+  generatePDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorProyecto, resumen) {
     this.createDocument();
     this.addHeader(title, subtitle, fechaInicio, fechaFin);
     this.addSummary(resumen);
-    this.addHoursTable(horas, subtotalesPorProyecto);
+    this.addHoursTable(subtotalesPorProyecto);
     this.addFooter();
 
     const fechaActual = new Date().toISOString().split('T')[0];
-    const nombreArchivo = `informe-hourly-${fechaActual}.pdf`;
-    this.doc.save(nombreArchivo);
+    this.doc.save(`informe-hourly-${fechaActual}.pdf`);
+  }
+
+  generateContratosPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorContrato, resumen) {
+    this.createDocument();
+    this.addHeader(title, subtitle, fechaInicio, fechaFin);
+    this.addContratosSummary(resumen);
+    this.addContratosTable(subtotalesPorContrato);
+    this.addFooter();
+
+    const fechaActual = new Date().toISOString().split('T')[0];
+    this.doc.save(`informe-contratos-hourly-${fechaActual}.pdf`);
   }
 
   generateLiquidacionesPDF(title, subtitle, fechaInicio, fechaFin, grupos, resumen) {
@@ -242,7 +386,7 @@ class PDFService {
     currentY += 6;
     this.doc.text(`Horas extras: ${resumen.totalHorasExtras.toFixed(2)}h`, 20, currentY);
     currentY += 6;
-    this.doc.text(`Importe total: $${resumen.totalImporte.toFixed(2)}`, 20, currentY);
+    this.doc.text(`Importe total: €${resumen.totalImporte.toFixed(2)}`, 20, currentY);
     currentY += 12;
 
     this.doc.setFont('helvetica', 'bold');
@@ -258,7 +402,7 @@ class PDFService {
 
       const importeGrupo = grupo.registros.reduce((sum, r) => sum + parseFloat(r.importe || 0), 0);
       this.doc.setFont('helvetica', 'bold');
-      this.doc.text(`${grupo.contratoNombre}`, 20, currentY);
+      this.doc.text(grupo.contratoNombre || 'Contrato', 20, currentY);
       currentY += 5;
       this.doc.setFont('helvetica', 'normal');
       this.doc.text(
@@ -274,14 +418,14 @@ class PDFService {
           currentY = 20;
         }
         this.doc.text(
-          `  ${liq.tipo}: ${parseFloat(liq.horas_extras).toFixed(2)}h extras, $${parseFloat(liq.importe).toFixed(2)}`,
+          `  ${liq.tipo}: ${parseFloat(liq.horas_extras).toFixed(2)}h extras, €${parseFloat(liq.importe).toFixed(2)}`,
           20,
           currentY
         );
         currentY += 5;
       });
 
-      this.doc.text(`  Total semana: $${importeGrupo.toFixed(2)}`, 20, currentY);
+      this.doc.text(`  Total semana: €${importeGrupo.toFixed(2)}`, 20, currentY);
       currentY += 8;
     });
 
@@ -296,9 +440,15 @@ class PDFService {
     return formatFechaEU(dateString);
   }
 
+  truncateText(text, maxLen) {
+    const value = String(text || '');
+    if (value.length <= maxLen) return value;
+    return `${value.substring(0, maxLen)}...`;
+  }
+
   formatTime(timeString) {
     if (!timeString) return '-';
-    return timeString.substring(0, 5); // HH:MM
+    return String(timeString).substring(0, 5);
   }
 
   formatDuration(minutes) {

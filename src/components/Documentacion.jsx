@@ -145,7 +145,7 @@ function Documentacion() {
                   <li>Define las <strong>horas semanales</strong> que debes cumplir (Ej: 40 horas)</li>
                   <li>Marca los <strong>días laborables</strong> del contrato (L M X J V S D, estilo selector de alarmas)</li>
                   <li>Elige el <strong>día de cierre de liquidación</strong> (día habitual de pago de extras, ej. Sábado)</li>
-                  <li>Establece el <strong>valor por hora extra</strong> (Ej: $25 por hora)</li>
+                  <li>Establece el <strong>valor por hora extra</strong> (Ej: 25 € por hora)</li>
                   <li>Guarda el contrato</li>
                 </ol>
               </div>
@@ -181,7 +181,7 @@ function Documentacion() {
                 </ul>
                 <p className="text-sm mt-2 font-medium text-orange-800">
                   Ejemplo: Contrato de 40h semanales con días L–V. Si trabajas 40h de lunes a viernes y 4h el sábado, tienes 4 horas extras.
-                  Si cada hora extra vale $25, cobrarás $100 adicionales.
+                  Si cada hora extra vale 25 €, cobrarás 100 € adicionales.
                 </p>
               </div>
 

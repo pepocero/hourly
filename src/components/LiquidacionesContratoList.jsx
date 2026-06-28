@@ -4,7 +4,7 @@ import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import { getSundayOfWeek } from '../utils/contratoHoras';
-import { formatFechaEU, formatFechaRegistro } from '../utils/formatFecha';
+import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
 
 const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, contratos, onDataChange }, ref) => {
   const [liquidaciones, setLiquidaciones] = useState([]);
@@ -176,7 +176,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     {horasExtras.toFixed(2)}h extras
-                    {importeTotal !== 0 && ` • $${importeTotal.toFixed(2)}`}
+                    {importeTotal !== 0 && ` • ${formatEuro(importeTotal)}`}
                   </p>
                 </div>
                 <button
@@ -211,7 +211,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                         </span>
                         {parseFloat(liq.importe) !== 0 && (
                           <span className={`font-medium ${parseFloat(liq.importe) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            ${parseFloat(liq.importe).toFixed(2)}
+                            {formatEuro(liq.importe)}
                           </span>
                         )}
                       </div>

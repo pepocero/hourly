@@ -9,7 +9,7 @@ import {
   getMondayOfWeek,
   getSundayOfWeek
 } from '../utils/contratoHoras';
-import { formatFechaEUCorta, formatFechaEU } from '../utils/formatFecha';
+import { formatFechaEUCorta, formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 
 const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, color, contratos, onEdit, onDataChange }, ref) => {
   const [horarios, setHorarios] = useState([]);
@@ -398,7 +398,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                           <p className="text-xs text-gray-600">
                             Contrato: {detalle.horasSemanales}h semanales ({formatDiasLaborables(detalle.diasLaborables)})
                             {detalle.valorHoraExtra > 0 && (
-                              <span> • Valor hora extra: ${detalle.valorHoraExtra}</span>
+                              <span> • Valor hora extra: {formatEuroPorHora(detalle.valorHoraExtra)}</span>
                             )}
                           </p>
                         </div>
@@ -419,7 +419,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                             <div className="text-right">
                               <p className="text-sm text-gray-600">Importe</p>
                               <p className="text-lg font-bold text-green-600">
-                                ${detalle.importe.toFixed(2)}
+                                {formatEuro(detalle.importe)}
                               </p>
                             </div>
                           )}
@@ -440,7 +440,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                     <p className="text-xs text-gray-600">
                       Contrato: {resumenHorasExtras.detallesPorContrato[0].horasSemanales}h semanales ({formatDiasLaborables(resumenHorasExtras.detallesPorContrato[0].diasLaborables)})
                       {resumenHorasExtras.detallesPorContrato[0].valorHoraExtra > 0 && (
-                        <span> • Valor hora extra: ${resumenHorasExtras.detallesPorContrato[0].valorHoraExtra}</span>
+                        <span> • Valor hora extra: {formatEuroPorHora(resumenHorasExtras.detallesPorContrato[0].valorHoraExtra)}</span>
                       )}
                     </p>
                   </div>
@@ -479,7 +479,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                       <div>
                         <p className="text-xs sm:text-sm text-gray-600">Importe Total</p>
                         <p className="text-xl sm:text-2xl font-bold text-green-600">
-                          ${resumenHorasExtras.totalImporte.toFixed(2)}
+                          {formatEuro(resumenHorasExtras.totalImporte)}
                         </p>
                       </div>
                     </div>
@@ -529,7 +529,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                             </div>
                             <p className="text-gray-600 mt-1">
                               {parseFloat(liq.horas_extras).toFixed(2)}h extras
-                              {parseFloat(liq.importe) !== 0 && ` • $${parseFloat(liq.importe).toFixed(2)}`}
+                              {parseFloat(liq.importe) !== 0 && ` • ${formatEuro(liq.importe)}`}
                             </p>
                           </div>
                         ))}
@@ -591,7 +591,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                 <div className="flex justify-between">
                   <span className="text-gray-600">Importe</span>
                   <span className="font-medium text-green-600">
-                    ${resumenHorasExtras.totalImporte.toFixed(2)}
+                    {formatEuro(resumenHorasExtras.totalImporte)}
                   </span>
                 </div>
               )}

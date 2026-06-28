@@ -3,6 +3,7 @@ import { X, Clock } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import { useFormConfirmations } from '../hooks/useFormConfirmations';
+import { formatEuro } from '../utils/formatFecha';
 
 function HorasForm({ hora, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -470,7 +471,7 @@ function HorasForm({ hora, onClose, onSave }) {
           {formData.total && (
             <div className="flex justify-between">
               <span className="text-gray-600">Total</span>
-              <span className="font-medium text-green-600">${formData.total}</span>
+              <span className="font-medium text-green-600">{formatEuro(formData.total)}</span>
             </div>
           )}
         </div>

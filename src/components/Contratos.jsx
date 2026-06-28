@@ -8,7 +8,7 @@ import HorariosContratoList from './HorariosContratoList';
 import LiquidacionesContratoList from './LiquidacionesContratoList';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
-import { formatFechaEU } from '../utils/formatFecha';
+import { formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 import {
   calcularHorasEsperadasSemana,
   formatDiasLaborables,
@@ -295,7 +295,7 @@ function Contratos() {
                 <p className="text-xl sm:text-2xl font-bold text-orange-600">{extras}h</p>
                 <p className="text-xs text-gray-500 mt-1">
                   {contratoSeleccionado.valor_hora_extra > 0 
-                    ? `a $${contratoSeleccionado.valor_hora_extra}/h` 
+                    ? `a ${formatEuroPorHora(contratoSeleccionado.valor_hora_extra)}` 
                     : 'Sin valor configurado'}
                 </p>
               </div>
@@ -306,7 +306,7 @@ function Contratos() {
                   <DollarSign className="h-4 w-4 text-blue-600" />
                   <p className="text-xs sm:text-sm text-gray-600">Total Horas Extras</p>
                 </div>
-                <p className="text-xl sm:text-2xl font-bold text-blue-600">${totalExtras}</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600">{formatEuro(totalExtras)}</p>
                 <p className="text-xs text-gray-500 mt-1">Esta semana</p>
               </div>
             </div>

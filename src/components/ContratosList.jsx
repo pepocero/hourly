@@ -1,6 +1,7 @@
 import React from 'react';
 import { Edit, Trash2, Check } from 'lucide-react';
 import { formatDiasLaborables } from '../utils/contratoHoras';
+import { formatEuroPorHora } from '../utils/formatFecha';
 
 function ContratosList({ contratos, contratoSeleccionado, onSelect, onEdit, onDelete }) {
   if (contratos.length === 0) {
@@ -50,8 +51,8 @@ function ContratosList({ contratos, contratoSeleccionado, onSelect, onEdit, onDe
                 </span>
                 <span className="hidden sm:inline text-gray-300">|</span>
                 <span className="flex items-center">
-                  <span className="font-medium">${contrato.valor_hora_extra}</span>
-                  <span className="ml-1">/ hora extra</span>
+                  <span className="font-medium">{formatEuroPorHora(contrato.valor_hora_extra)}</span>
+                  <span className="ml-1">hora extra</span>
                 </span>
               </div>
             </div>

@@ -40,3 +40,17 @@ export function formatFechaRegistro(dateString) {
     minute: '2-digit'
   });
 }
+
+export function formatEuro(amount, decimals = 2) {
+  if (amount === null || amount === undefined || amount === '') return '—';
+  const n = typeof amount === 'number' ? amount : parseFloat(amount);
+  if (Number.isNaN(n)) return '—';
+  return `€${n.toFixed(decimals)}`;
+}
+
+export function formatEuroPorHora(amount) {
+  if (amount === null || amount === undefined || amount === '') return '—';
+  const n = typeof amount === 'number' ? amount : parseFloat(amount);
+  if (Number.isNaN(n)) return '—';
+  return `€${n}/h`;
+}
