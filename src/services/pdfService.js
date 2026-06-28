@@ -36,36 +36,55 @@ class PDFService {
     this.doc.setFontSize(10);
     this.doc.setFont('helvetica', 'italic');
     this.doc.text(`Período: ${formatFechaEU(fechaInicio)} - ${formatFechaEU(fechaFin)}`, 20, 65);
-    
-    // Fecha de generación
-    const fechaGeneracion = new Date().toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    this.doc.text(`Generado el: ${fechaGeneracion}`, 20, 75);
-    
-    // Línea separadora
+
     this.doc.setDrawColor(200, 200, 200);
-    this.doc.line(20, 80, 190, 80);
+    this.doc.line(20, 72, 190, 72);
+  }
+
+  drawMetricCards(yStart, metrics) {
+    const startX = 20;
+    const boxWidth = 82;
+    const boxHeight = 24;
+    const gapX = 6;
+    const gapY = 8;
+    const cols = 2;
+
+    this.doc.setFontSize(14);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setTextColor(0, 0, 0);
+    this.doc.text('Resumen', startX, yStart);
+
+    const gridY = yStart + 10;
+
+    metrics.forEach((metric, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const x = startX + col * (boxWidth + gapX);
+      const y = gridY + row * (boxHeight + gapY);
+
+      this.doc.setFillColor(...metric.color);
+      this.doc.rect(x, y, boxWidth, boxHeight, 'F');
+
+      this.doc.setFontSize(9);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setTextColor(255, 255, 255);
+      this.doc.text(metric.label, x + 5, y + 8);
+
+      this.doc.setFontSize(14);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text(metric.value, x + 5, y + 19);
+
+      this.doc.setTextColor(0, 0, 0);
+    });
+
+    const rows = Math.ceil(metrics.length / cols);
+    return gridY + rows * boxHeight + (rows - 1) * gapY + 12;
   }
 
   // Agregar resumen de métricas
   addSummary(resumen) {
     if (!this.doc) return;
 
-    const yStart = 90;
-    const colWidth = 40;
-    const rowHeight = 15;
-
-    // Título de resumen
-    this.doc.setFontSize(14);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.text('Resumen Ejecutivo', 20, yStart);
-
-    // Métricas en cuadros
     const metrics = [
       { label: 'Total Horas', value: `${resumen.totalHoras.toFixed(1)}h`, color: [59, 130, 246] },
       { label: 'Total Ganancias', value: `€${resumen.totalGanancias.toFixed(2)}`, color: [34, 197, 94] },
@@ -73,26 +92,7 @@ class PDFService {
       { label: 'Promedio/Día', value: `${resumen.promedioMinutos.toFixed(0)}m`, color: [249, 115, 22] }
     ];
 
-    metrics.forEach((metric, index) => {
-      const x = 20 + (index % 2) * colWidth;
-      const y = yStart + 15 + Math.floor(index / 2) * rowHeight;
-
-      // Fondo del cuadro
-      this.doc.setFillColor(...metric.color);
-      this.doc.rect(x, y - 8, colWidth - 5, 12, 'F');
-
-      // Texto del cuadro
-      this.doc.setFontSize(10);
-      this.doc.setFont('helvetica', 'bold');
-      this.doc.setTextColor(255, 255, 255);
-      this.doc.text(metric.label, x + 2, y - 2);
-
-      this.doc.setFontSize(12);
-      this.doc.text(metric.value, x + 2, y + 4);
-
-      // Resetear color
-      this.doc.setTextColor(0, 0, 0);
-    });
+    this.drawMetricCards(82, metrics);
   }
 
   // Agregar tabla de horas trabajadas (proyectos)
@@ -194,14 +194,6 @@ class PDFService {
   addContratosSummary(resumen) {
     if (!this.doc) return;
 
-    const yStart = 90;
-    const colWidth = 40;
-    const rowHeight = 15;
-
-    this.doc.setFontSize(14);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.text('Resumen Ejecutivo', 20, yStart);
-
     const metrics = [
       { label: 'Total Horas', value: `${resumen.totalHoras.toFixed(1)}h`, color: [59, 130, 246] },
       { label: 'Horas Extras', value: `${(resumen.totalHorasExtras || 0).toFixed(2)}h`, color: [249, 115, 22] },
@@ -209,23 +201,7 @@ class PDFService {
       { label: 'Importe Extras', value: `€${resumen.totalGanancias.toFixed(2)}`, color: [34, 197, 94] }
     ];
 
-    metrics.forEach((metric, index) => {
-      const x = 20 + (index % 2) * colWidth;
-      const y = yStart + 15 + Math.floor(index / 2) * rowHeight;
-
-      this.doc.setFillColor(...metric.color);
-      this.doc.rect(x, y - 8, colWidth - 5, 12, 'F');
-
-      this.doc.setFontSize(10);
-      this.doc.setFont('helvetica', 'bold');
-      this.doc.setTextColor(255, 255, 255);
-      this.doc.text(metric.label, x + 2, y - 2);
-
-      this.doc.setFontSize(12);
-      this.doc.text(metric.value, x + 2, y + 4);
-
-      this.doc.setTextColor(0, 0, 0);
-    });
+    this.drawMetricCards(82, metrics);
   }
 
   addContratosTable(subtotalesPorContrato) {
@@ -342,8 +318,7 @@ class PDFService {
     this.doc.setFontSize(8);
     this.doc.setFont('helvetica', 'italic');
     this.doc.setTextColor(100, 100, 100);
-    this.doc.text('Informe generado por Hourly - Sistema de Gestión de Horas Laborales', 20, pageHeight - 15);
-    this.doc.text('https://hourly.pepocero.workers.dev', 20, pageHeight - 10);
+    this.doc.text('Informe generado por Hourly - Sistema de Gestión de Horas Laborales', 20, pageHeight - 12);
   }
 
   generatePDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorProyecto, resumen) {

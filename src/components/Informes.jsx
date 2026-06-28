@@ -27,16 +27,6 @@ function Informes() {
   const [showAnularLiquidacionModal, setShowAnularLiquidacionModal] = useState(false);
   const [anulandoLiquidacion, setAnulandoLiquidacion] = useState(false);
 
-  // Establecer fechas por defecto (mes actual)
-  useEffect(() => {
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    setFechaInicio(firstDayOfMonth.toISOString().split('T')[0]);
-    setFechaFin(lastDayOfMonth.toISOString().split('T')[0]);
-  }, []);
-
   useEffect(() => {
     loadProyectos();
     loadContratos();
