@@ -331,4 +331,12 @@ export class DatabaseService {
     `);
     return await stmt.bind(liquidacionId, userId).run();
   }
+
+  async deleteLiquidacionesSemana(userId, contratoId, semanaLunes) {
+    const stmt = this.db.prepare(`
+      DELETE FROM liquidaciones_contrato
+      WHERE user_id = ? AND contrato_id = ? AND semana_lunes = ?
+    `);
+    return await stmt.bind(userId, contratoId, semanaLunes).run();
+  }
 }

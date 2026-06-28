@@ -5,8 +5,10 @@ import ContratoForm from './ContratoForm';
 import ContratosList from './ContratosList';
 import HorarioContratoForm from './HorarioContratoForm';
 import HorariosContratoList from './HorariosContratoList';
+import LiquidacionesContratoList from './LiquidacionesContratoList';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
+import { formatFechaEU } from '../utils/formatFecha';
 import {
   calcularHorasEsperadasSemana,
   formatDiasLaborables,
@@ -32,9 +34,11 @@ function Contratos() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [contratoToDelete, setContratoToDelete] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [vistaSeccion, setVistaSeccion] = useState('horarios');
   
   // Referencia para acceder a las funciones del componente HorariosContratoList
   const horariosListRef = React.useRef(null);
+  const liquidacionesListRef = React.useRef(null);
 
   // Calcular fechas de la semana actual
   const getWeekDates = () => {
@@ -279,7 +283,7 @@ function Contratos() {
                   <p className="text-xs sm:text-sm text-gray-600">Horas Normales</p>
                 </div>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900">{normal}h</p>
-                <p className="text-xs text-gray-500 mt-1">de {horasEsperadas}h esperadas ({diasLaborablesLabel}, cierre {fechasSemana.fin})</p>
+                <p className="text-xs text-gray-500 mt-1">de {horasEsperadas}h esperadas ({diasLaborablesLabel}, cierre {formatFechaEU(fechasSemana.fin)})</p>
               </div>
 
               {/* Horas extras */}
@@ -307,6 +311,13 @@ function Contratos() {
               </div>
             </div>
 
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-900">
+                Las horas registradas en días no laborables del contrato (por ejemplo, domingo si trabajas L–S)
+                sí se incluyen en el total trabajado y se computan como horas extras.
+              </p>
+            </div>
+
             {/* Botón para registrar horario */}
             <div className="mt-4">
               <button
@@ -322,13 +333,34 @@ function Contratos() {
             </div>
           </div>
 
-          {/* Lista de horarios con filtro */}
+          {/* Horarios y liquidaciones */}
           <div className="card">
             <div className="flex flex-col space-y-3 mb-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                <h4 className="text-base sm:text-lg font-semibold text-gray-900">
-                  Horarios Registrados
-                </h4>
+                <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setVistaSeccion('horarios')}
+                    className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                      vistaSeccion === 'horarios'
+                        ? 'bg-white text-primary-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Horarios
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVistaSeccion('liquidaciones')}
+                    className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                      vistaSeccion === 'liquidaciones'
+                        ? 'bg-white text-primary-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Liquidaciones
+                  </button>
+                </div>
               </div>
               
               {/* Filtros */}
@@ -388,6 +420,7 @@ function Contratos() {
                 )}
               </div>
             </div>
+            {vistaSeccion === 'horarios' ? (
             <HorariosContratoList 
               ref={horariosListRef}
               contratoId={contratoFiltro === 'all' ? null : parseInt(contratoFiltro)}
@@ -396,8 +429,27 @@ function Contratos() {
               color={contratoSeleccionado.color}
               contratos={contratos}
               onEdit={handleEditHorario}
-              onDataChange={loadResumenSemanal}
+              onDataChange={() => {
+                loadResumenSemanal();
+                if (liquidacionesListRef.current) {
+                  liquidacionesListRef.current.loadLiquidaciones();
+                }
+              }}
             />
+            ) : (
+            <LiquidacionesContratoList
+              ref={liquidacionesListRef}
+              contratoId={contratoFiltro === 'all' ? null : parseInt(contratoFiltro)}
+              fechaInicio={fechaInicioFiltro || null}
+              fechaFin={fechaFinFiltro || null}
+              contratos={contratos}
+              onDataChange={() => {
+                if (horariosListRef.current) {
+                  horariosListRef.current.loadLiquidaciones();
+                }
+              }}
+            />
+            )}
           </div>
         </>
       )}

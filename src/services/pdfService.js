@@ -1,5 +1,6 @@
 // Servicio para generar PDFs de informes
 import jsPDF from 'jspdf';
+import { formatFechaEU } from '../utils/formatFecha';
 
 class PDFService {
   constructor() {
@@ -34,7 +35,7 @@ class PDFService {
     // Rango de fechas
     this.doc.setFontSize(10);
     this.doc.setFont('helvetica', 'italic');
-    this.doc.text(`Período: ${fechaInicio} - ${fechaFin}`, 20, 65);
+    this.doc.text(`Período: ${formatFechaEU(fechaInicio)} - ${formatFechaEU(fechaFin)}`, 20, 65);
     
     // Fecha de generación
     const fechaGeneracion = new Date().toLocaleDateString('es-ES', {
@@ -218,23 +219,81 @@ class PDFService {
     this.addHoursTable(horas, subtotalesPorProyecto);
     this.addFooter();
 
-    // Generar nombre de archivo
     const fechaActual = new Date().toISOString().split('T')[0];
     const nombreArchivo = `informe-hourly-${fechaActual}.pdf`;
-
-    // Descargar archivo
     this.doc.save(nombreArchivo);
+  }
+
+  generateLiquidacionesPDF(title, subtitle, fechaInicio, fechaFin, grupos, resumen) {
+    this.createDocument();
+    this.addHeader(title, subtitle, fechaInicio, fechaFin);
+
+    let currentY = 90;
+    this.doc.setFontSize(14);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('Resumen', 20, currentY);
+    currentY += 10;
+
+    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.text(`Semanas liquidadas: ${resumen.totalSemanas}`, 20, currentY);
+    currentY += 6;
+    this.doc.text(`Registros: ${resumen.totalRegistros}`, 20, currentY);
+    currentY += 6;
+    this.doc.text(`Horas extras: ${resumen.totalHorasExtras.toFixed(2)}h`, 20, currentY);
+    currentY += 6;
+    this.doc.text(`Importe total: $${resumen.totalImporte.toFixed(2)}`, 20, currentY);
+    currentY += 12;
+
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('Detalle por semana', 20, currentY);
+    currentY += 8;
+    this.doc.setFont('helvetica', 'normal');
+
+    grupos.forEach((grupo) => {
+      if (currentY > 250) {
+        this.doc.addPage();
+        currentY = 20;
+      }
+
+      const importeGrupo = grupo.registros.reduce((sum, r) => sum + parseFloat(r.importe || 0), 0);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text(`${grupo.contratoNombre}`, 20, currentY);
+      currentY += 5;
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(
+        `Semana ${formatFechaEU(grupo.semanaLunes)} - ${formatFechaEU(grupo.semanaFin)}`,
+        20,
+        currentY
+      );
+      currentY += 5;
+
+      grupo.registros.forEach((liq) => {
+        if (currentY > 270) {
+          this.doc.addPage();
+          currentY = 20;
+        }
+        this.doc.text(
+          `  ${liq.tipo}: ${parseFloat(liq.horas_extras).toFixed(2)}h extras, $${parseFloat(liq.importe).toFixed(2)}`,
+          20,
+          currentY
+        );
+        currentY += 5;
+      });
+
+      this.doc.text(`  Total semana: $${importeGrupo.toFixed(2)}`, 20, currentY);
+      currentY += 8;
+    });
+
+    this.addFooter();
+
+    const fechaActual = new Date().toISOString().split('T')[0];
+    this.doc.save(`informe-liquidaciones-hourly-${fechaActual}.pdf`);
   }
 
   // Funciones auxiliares
   formatDate(dateString) {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    return formatFechaEU(dateString);
   }
 
   formatTime(timeString) {

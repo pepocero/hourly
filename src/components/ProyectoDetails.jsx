@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, Euro, Filter, ArrowLeft } from 'lucide-react';
 import apiService from '../services/api';
+import { formatFechaEU } from '../utils/formatFecha';
 
 function ProyectoDetails({ proyecto, onClose }) {
   const [horas, setHoras] = useState([]);
@@ -54,13 +55,7 @@ function ProyectoDetails({ proyecto, onClose }) {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const formatDate = formatFechaEU;
 
   const formatHours = (minutes) => {
     const hours = minutes / 60;

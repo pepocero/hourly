@@ -10,6 +10,7 @@ import Informes from './Informes';
 import Contratos from './Contratos';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
+import { formatFechaEU } from '../utils/formatFecha';
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('horas');
@@ -60,14 +61,7 @@ function Dashboard() {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
+  const formatDate = formatFechaEU;
 
   const handleExportarCSVClick = () => {
     if (!fechaInicio || !fechaFin) {

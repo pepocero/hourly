@@ -311,6 +311,22 @@ class ApiService {
     });
   }
 
+  async deleteLiquidacionContrato(id) {
+    return this.request(`/api/liquidaciones-contrato/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async anularLiquidacionesSemana(contratoId, semanaLunes) {
+    const params = new URLSearchParams({
+      contrato_id: String(contratoId),
+      semana_lunes: semanaLunes
+    });
+    return this.request(`/api/liquidaciones-contrato/semana?${params.toString()}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getAjustePendiente(contratoId, semanaLunes, fechaFin = null) {
     const params = new URLSearchParams();
     params.append('contrato_id', contratoId);

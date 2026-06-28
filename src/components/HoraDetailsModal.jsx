@@ -1,19 +1,13 @@
 import React from 'react';
 import { X, Calendar, Clock, Euro, FileText, Tag, CheckCircle2, CircleDollarSign } from 'lucide-react';
+import { formatFechaEU } from '../utils/formatFecha';
 
 function HoraDetailsModal({ isOpen, onClose, hora }) {
   if (!isOpen || !hora) return null;
 
   const pagada = hora.pagado === 1 || hora.pagado === true || hora.pagado === '1';
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
+  const formatDate = formatFechaEU;
 
   const formatTime = (time) => {
     if (!time) return '-';

@@ -4,6 +4,7 @@ import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HoraDetailsModal from './HoraDetailsModal';
+import { formatFechaEU } from '../utils/formatFecha';
 
 function isHoraPagada(hora) {
   return hora.pagado === 1 || hora.pagado === true || hora.pagado === '1';
@@ -259,13 +260,7 @@ const HorasList = forwardRef(({ fechaInicio, fechaFin, onEdit, onDataChange }, r
     return `${hours}h ${mins}m`;
   };
 
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
+  const formatDate = formatFechaEU;
 
   if (loading) {
     return (

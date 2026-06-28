@@ -6,8 +6,10 @@ import AlertModal from './AlertModal';
 import {
   calcularResumenHorasExtrasMultiples,
   formatDiasLaborables,
-  getMondayOfWeek
+  getMondayOfWeek,
+  getSundayOfWeek
 } from '../utils/contratoHoras';
+import { formatFechaEUCorta, formatFechaEU } from '../utils/formatFecha';
 
 const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, color, contratos, onEdit, onDataChange }, ref) => {
   const [horarios, setHorarios] = useState([]);
@@ -186,15 +188,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     return `${hours}h ${mins}m`;
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('es-ES', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short',
-      year: 'numeric'
-    });
-  };
+  const formatDate = (dateString) => formatFechaEUCorta(dateString);
 
   // Calcular horas extras del periodo seleccionado
   const calcularHorasExtras = useMemo(() => {
@@ -529,7 +523,9 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                               }`}>
                                 {liq.tipo}
                               </span>
-                              <span className="text-gray-500">Sem. {liq.semana_lunes}</span>
+                              <span className="text-gray-500">
+                                Sem. {formatFechaEU(liq.semana_lunes)} – {formatFechaEU(getSundayOfWeek(liq.semana_lunes))}
+                              </span>
                             </div>
                             <p className="text-gray-600 mt-1">
                               {parseFloat(liq.horas_extras).toFixed(2)}h extras
@@ -558,7 +554,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
           isOpen={showDeleteModal}
           onClose={handleDeleteCancel}
           title="Eliminar horario"
-          message={`¿Eliminar el horario del ${horarioToDelete?.fecha}? Esta acción no se puede deshacer.`}
+          message={`¿Eliminar el horario del ${horarioToDelete ? formatFechaEU(horarioToDelete.fecha) : ''}? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
           cancelText="Cancelar"
           onConfirm={handleDeleteConfirm}

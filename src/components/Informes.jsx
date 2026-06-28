@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck } from 'lucide-react';
+import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2 } from 'lucide-react';
 import apiService from '../services/api';
 import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek } from '../utils/contratoHoras';
+import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro } from '../utils/formatFecha';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 
@@ -22,6 +23,9 @@ function Informes() {
   const [error, setError] = useState('');
   const [exportModal, setExportModal] = useState({ isOpen: false, type: null });
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [grupoLiquidacionToAnular, setGrupoLiquidacionToAnular] = useState(null);
+  const [showAnularLiquidacionModal, setShowAnularLiquidacionModal] = useState(false);
+  const [anulandoLiquidacion, setAnulandoLiquidacion] = useState(false);
 
   // Establecer fechas por defecto (mes actual)
   useEffect(() => {
@@ -128,27 +132,8 @@ function Informes() {
     }
   };
 
-  const handleGenerarInforme = () => {
-    loadDatos();
-  };
-
-  const formatDateLong = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
+  const formatDateLong = formatFechaEUCorta;
+  const formatDate = formatFechaEU;
 
   const formatTime = (time) => {
     if (!time) return '-';
@@ -318,17 +303,7 @@ function Informes() {
     }
   };
 
-  const formatFechaRegistro = (dateString) => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const formatFechaRegistroDisplay = formatFechaRegistro;
 
   const handleExportarCSVClick = () => {
     if (!fechaInicio || !fechaFin) {
@@ -380,6 +355,15 @@ function Informes() {
       });
       return;
     }
+    if (tipoDatos === 'liquidaciones' && liquidaciones.length === 0) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Sin datos',
+        message: 'No hay liquidaciones en el periodo seleccionado para generar el PDF.',
+        type: 'info'
+      });
+      return;
+    }
     setExportModal({ isOpen: true, type: 'pdf' });
   };
 
@@ -405,8 +389,13 @@ function Informes() {
     if (exportType === 'pdf') {
       const title = tipoDatos === 'proyectos'
         ? 'Informe de Horas Trabajadas'
-        : 'Informe de Horarios de Contrato';
-      const subtitle = `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
+        : tipoDatos === 'contratos'
+          ? 'Informe de Horarios de Contrato'
+          : 'Informe de Liquidaciones';
+
+      const subtitle = tipoDatos === 'liquidaciones'
+        ? 'Liquidaciones registradas por semana'
+        : `Tipo: ${tiposInforme.find(t => t.id === tipoInforme)?.label || 'Detallado'}`;
 
       try {
         const { default: pdfService } = await import('../services/pdfService');
@@ -426,7 +415,7 @@ function Informes() {
               promedioMinutos: horas.length > 0 ? totalGeneralMinutos / horas.length : 0
             }
           );
-        } else {
+        } else if (tipoDatos === 'contratos') {
           pdfService.generatePDF(
             title,
             subtitle,
@@ -439,6 +428,20 @@ function Informes() {
               totalGanancias: totalGeneralGanancias,
               totalRegistros: horariosContrato.length,
               promedioMinutos: horariosContrato.length > 0 ? totalGeneralMinutos / horariosContrato.length : 0
+            }
+          );
+        } else {
+          pdfService.generateLiquidacionesPDF(
+            title,
+            subtitle,
+            fechaInicio,
+            fechaFin,
+            liquidacionesPorSemana,
+            {
+              totalSemanas: totalSemanasLiquidadas,
+              totalRegistros: liquidaciones.length,
+              totalHorasExtras: totalHorasExtrasLiquidaciones,
+              totalImporte: totalImporteLiquidaciones
             }
           );
         }
@@ -460,6 +463,50 @@ function Informes() {
     : 'Se descargará un archivo CSV con las horas del periodo seleccionado.';
   const exportConfirmText = exportModal.type === 'pdf' ? 'Generar PDF' : 'Descargar CSV';
 
+  const tieneDatosParaInforme = (
+    (tipoDatos === 'proyectos' && horas.length > 0) ||
+    (tipoDatos === 'contratos' && horariosContrato.length > 0) ||
+    (tipoDatos === 'liquidaciones' && liquidaciones.length > 0)
+  );
+
+  const handleAnularLiquidacionClick = (grupo) => {
+    setGrupoLiquidacionToAnular(grupo);
+    setShowAnularLiquidacionModal(true);
+  };
+
+  const handleAnularLiquidacionConfirm = async () => {
+    if (!grupoLiquidacionToAnular) return;
+    setShowAnularLiquidacionModal(false);
+    setAnulandoLiquidacion(true);
+
+    try {
+      const response = await apiService.anularLiquidacionesSemana(
+        grupoLiquidacionToAnular.contratoId,
+        grupoLiquidacionToAnular.semanaLunes
+      );
+      if (response.success) {
+        await loadDatos();
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'No se pudo anular',
+          message: response.error || 'Error al anular la liquidación.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'No se pudo anular',
+        message: 'Error al anular la liquidación. Inténtalo de nuevo.',
+        type: 'error'
+      });
+    } finally {
+      setAnulandoLiquidacion(false);
+      setGrupoLiquidacionToAnular(null);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -470,25 +517,15 @@ function Informes() {
         </div>
         
         <div className="flex space-x-2 sm:space-x-3">
-          {tipoDatos !== 'liquidaciones' && (
-            <>
-              <button
-                onClick={handleExportarCSVClick}
-                className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
-              >
-                <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Exportar CSV</span>
-                <span className="sm:hidden">CSV</span>
-              </button>
-              <button
-                onClick={handleExportarPDFClick}
-                className="btn-primary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
-              >
-                <FileDown className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Exportar PDF</span>
-                <span className="sm:hidden">PDF</span>
-              </button>
-            </>
+          {tipoDatos === 'proyectos' && (
+            <button
+              onClick={handleExportarCSVClick}
+              className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
+            >
+              <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Exportar CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </button>
           )}
         </div>
       </div>
@@ -661,17 +698,12 @@ function Informes() {
             </div>
           </div>
 
-          {/* Botón generar */}
-          <div className="flex justify-end">
-            <button
-              onClick={handleGenerarInforme}
-              disabled={loading}
-              className="btn-primary flex items-center space-x-2 text-sm px-4 py-2"
-            >
-              <FileText className="h-4 w-4" />
-              <span>{loading ? 'Generando...' : tipoDatos === 'liquidaciones' ? 'Consultar liquidaciones' : 'Generar Informe'}</span>
-            </button>
-          </div>
+          {loading && fechaInicio && fechaFin && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+              <span>Actualizando informe...</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -870,11 +902,22 @@ function Informes() {
                         Semana {formatDateLong(grupo.semanaLunes)} – {formatDateLong(grupo.semanaFin)}
                       </p>
                     </div>
-                    <div className="flex items-center space-x-4 text-sm">
-                      <span className="text-orange-600 font-medium">{horasExtrasGrupo.toFixed(2)}h extras</span>
-                      {importeGrupo !== 0 && (
-                        <span className="text-green-600 font-medium">${importeGrupo.toFixed(2)}</span>
-                      )}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <div className="flex items-center space-x-4 text-sm">
+                        <span className="text-orange-600 font-medium">{horasExtrasGrupo.toFixed(2)}h extras</span>
+                        {importeGrupo !== 0 && (
+                          <span className="text-green-600 font-medium">${importeGrupo.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAnularLiquidacionClick(grupo)}
+                        disabled={anulandoLiquidacion}
+                        className="btn-secondary flex items-center gap-1 text-xs text-red-700 border-red-200 hover:bg-red-50 w-full sm:w-auto justify-center"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Anular
+                      </button>
                     </div>
                   </div>
 
@@ -887,7 +930,7 @@ function Informes() {
                               {liq.tipo}
                             </span>
                             <span className="text-xs text-gray-500">
-                              Registrada: {formatFechaRegistro(liq.created_at)}
+                              Registrada: {formatFechaRegistroDisplay(liq.created_at)}
                             </span>
                           </div>
                           <div className="flex items-center space-x-4 text-sm">
@@ -1245,10 +1288,45 @@ function Informes() {
           <p className="text-gray-600">
             {tipoDatos === 'liquidaciones'
               ? 'No hay liquidaciones registradas en el rango de fechas seleccionado.'
-              : `Selecciona un rango de fechas y genera un informe para ver tus ${tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.`}
+              : `Selecciona un rango de fechas para ver tus ${tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.`}
           </p>
         </div>
       )}
+
+      {/* Exportar informe a PDF (al final) */}
+      {tieneDatosParaInforme && !loading && (
+        <div className="card border-2 border-primary-100 bg-primary-50/50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Exportar informe</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Descarga el informe actual ({formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}) en PDF.
+              </p>
+            </div>
+            <button
+              onClick={handleExportarPDFClick}
+              className="btn-primary flex items-center justify-center space-x-2 text-sm px-4 py-2 w-full sm:w-auto"
+            >
+              <FileDown className="h-4 w-4" />
+              <span>Exportar a PDF</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={showAnularLiquidacionModal}
+        onClose={() => {
+          setShowAnularLiquidacionModal(false);
+          setGrupoLiquidacionToAnular(null);
+        }}
+        onConfirm={handleAnularLiquidacionConfirm}
+        title="Anular liquidación de la semana"
+        message={`¿Anular la liquidación de la semana del ${grupoLiquidacionToAnular ? formatDate(grupoLiquidacionToAnular.semanaLunes) : ''}? Podrás volver a registrarla después.`}
+        confirmText="Anular liquidación"
+        cancelText="Cancelar"
+        type="danger"
+      />
 
       <ConfirmModal
         isOpen={exportModal.isOpen}

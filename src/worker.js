@@ -1384,6 +1384,91 @@ export default {
         }
       }
 
+      // DELETE /api/liquidaciones-contrato/semana - Anular todas las liquidaciones de una semana
+      if (url.pathname === '/api/liquidaciones-contrato/semana' && request.method === 'DELETE') {
+        try {
+          const contratoId = parseInt(url.searchParams.get('contrato_id'), 10);
+          const semanaLunes = url.searchParams.get('semana_lunes');
+
+          if (!contratoId || !semanaLunes) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Contrato y semana_lunes son requeridos'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const result = await db.deleteLiquidacionesSemana(authResult.userId, contratoId, semanaLunes);
+
+          if (!result.success || result.meta.changes === 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'No se encontraron liquidaciones para anular en esa semana'
+            }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Liquidación de la semana anulada correctamente',
+            data: { eliminadas: result.meta.changes }
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/liquidaciones-contrato/semana (DELETE):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
+      // DELETE /api/liquidaciones-contrato/:id - Eliminar una liquidación
+      if (url.pathname.match(/^\/api\/liquidaciones-contrato\/\d+$/) && request.method === 'DELETE') {
+        try {
+          const id = parseInt(url.pathname.split('/').pop(), 10);
+          const result = await db.deleteLiquidacionContrato(id, authResult.userId);
+
+          if (!result.success || result.meta.changes === 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Liquidación no encontrada o no autorizada'
+            }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Liquidación eliminada correctamente'
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/liquidaciones-contrato/:id (DELETE):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
       // GET /api/liquidaciones-contrato/ajuste-pendiente
       if (url.pathname === '/api/liquidaciones-contrato/ajuste-pendiente' && request.method === 'GET') {
         try {
