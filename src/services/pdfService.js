@@ -43,42 +43,38 @@ class PDFService {
 
   drawMetricCards(yStart, metrics) {
     const startX = 20;
-    const boxWidth = 82;
-    const boxHeight = 24;
-    const gapX = 6;
-    const gapY = 8;
-    const cols = 2;
+    const totalWidth = 170;
+    const count = metrics.length;
+    const gapX = 4;
+    const boxWidth = (totalWidth - gapX * (count - 1)) / count;
+    const boxHeight = 18;
 
     this.doc.setFontSize(14);
     this.doc.setFont('helvetica', 'bold');
     this.doc.setTextColor(0, 0, 0);
     this.doc.text('Resumen', startX, yStart);
 
-    const gridY = yStart + 10;
+    const gridY = yStart + 8;
 
     metrics.forEach((metric, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
-      const x = startX + col * (boxWidth + gapX);
-      const y = gridY + row * (boxHeight + gapY);
+      const x = startX + index * (boxWidth + gapX);
 
       this.doc.setFillColor(...metric.color);
-      this.doc.rect(x, y, boxWidth, boxHeight, 'F');
+      this.doc.rect(x, gridY, boxWidth, boxHeight, 'F');
 
-      this.doc.setFontSize(9);
+      this.doc.setFontSize(7);
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(255, 255, 255);
-      this.doc.text(metric.label, x + 5, y + 8);
+      this.doc.text(metric.label, x + boxWidth / 2, gridY + 6, { align: 'center' });
 
-      this.doc.setFontSize(14);
+      this.doc.setFontSize(11);
       this.doc.setFont('helvetica', 'bold');
-      this.doc.text(metric.value, x + 5, y + 19);
+      this.doc.text(metric.value, x + boxWidth / 2, gridY + 15, { align: 'center' });
 
       this.doc.setTextColor(0, 0, 0);
     });
 
-    const rows = Math.ceil(metrics.length / cols);
-    return gridY + rows * boxHeight + (rows - 1) * gapY + 12;
+    return gridY + boxHeight + 10;
   }
 
   // Agregar resumen de métricas
@@ -92,14 +88,14 @@ class PDFService {
       { label: 'Promedio/Día', value: `${resumen.promedioMinutos.toFixed(0)}m`, color: [249, 115, 22] }
     ];
 
-    this.drawMetricCards(82, metrics);
+    this.summaryEndY = this.drawMetricCards(82, metrics);
   }
 
   // Agregar tabla de horas trabajadas (proyectos)
   addHoursTable(subtotalesPorProyecto) {
     if (!this.doc) return;
 
-    const yStart = 160;
+    const yStart = this.summaryEndY || 118;
     let currentY = yStart;
 
     this.doc.setFontSize(14);
@@ -201,13 +197,13 @@ class PDFService {
       { label: 'Importe Extras', value: `€${resumen.totalGanancias.toFixed(2)}`, color: [34, 197, 94] }
     ];
 
-    this.drawMetricCards(82, metrics);
+    this.summaryEndY = this.drawMetricCards(82, metrics);
   }
 
   addContratosTable(subtotalesPorContrato) {
     if (!this.doc) return;
 
-    const yStart = 160;
+    const yStart = this.summaryEndY || 118;
     let currentY = yStart;
 
     this.doc.setFontSize(14);
@@ -295,12 +291,17 @@ class PDFService {
 
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFillColor(139, 92, 246);
-    this.doc.rect(20, currentY - 3, 170, 8, 'F');
+    const totalRowHeight = 14;
+    this.doc.rect(20, currentY - 5, 170, totalRowHeight, 'F');
     this.doc.setTextColor(255, 255, 255);
 
-    this.doc.text(`TOTAL (${totalHorasExtras.toFixed(2)}h extras):`, 25, currentY);
-    this.doc.text(`€${totalExtras.toFixed(2)}`, 165, currentY);
+    this.doc.setFontSize(10);
+    this.doc.text(`TOTAL (${totalHorasExtras.toFixed(2)}h extras):`, 25, currentY + 2);
 
+    this.doc.setFontSize(18);
+    this.doc.text(`€${totalExtras.toFixed(2)}`, 185, currentY + 4, { align: 'right' });
+
+    currentY += totalRowHeight + 2;
     this.doc.setTextColor(0, 0, 0);
   }
 

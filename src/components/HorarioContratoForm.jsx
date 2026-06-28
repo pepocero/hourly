@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Clock } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
+import { formatFechaEU } from '../utils/formatFecha';
 import { useFormConfirmations } from '../hooks/useFormConfirmations';
 
 function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
@@ -266,7 +267,7 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-2">
           <div className="flex justify-between">
             <span className="text-gray-600">Fecha</span>
-            <span className="font-medium text-gray-900">{formData.fecha}</span>
+            <span className="font-medium text-gray-900">{formatFechaEU(formData.fecha)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Horario</span>
