@@ -199,7 +199,8 @@ export function createContratosRoutes(db, jwtSecret) {
           fecha,
           hora_entrada,
           hora_salida,
-          descripcion
+          descripcion,
+          es_dia_suelto
         } = await request.json();
 
         // Validaciones básicas
@@ -233,7 +234,8 @@ export function createContratosRoutes(db, jwtSecret) {
           hora_entrada,
           hora_salida,
           duracionMinutos,
-          descripcion
+          descripcion,
+          es_dia_suelto ? 1 : 0
         );
 
         if (result.success) {
@@ -263,7 +265,8 @@ export function createContratosRoutes(db, jwtSecret) {
           fecha,
           hora_entrada,
           hora_salida,
-          descripcion
+          descripcion,
+          es_dia_suelto
         } = await request.json();
 
         // Calcular duración
@@ -286,7 +289,8 @@ export function createContratosRoutes(db, jwtSecret) {
           hora_entrada,
           hora_salida,
           duracionMinutos,
-          descripcion
+          descripcion,
+          es_dia_suelto ? 1 : 0
         );
 
         if (result.success) {

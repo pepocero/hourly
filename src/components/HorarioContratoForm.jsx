@@ -5,9 +5,21 @@ import ConfirmModal from './ConfirmModal';
 import { formatFechaEU } from '../utils/formatFecha';
 import { useFormConfirmations } from '../hooks/useFormConfirmations';
 
-function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
+function HorarioContratoForm({
+  horario,
+  contratoId: contratoIdProp,
+  contratos = [],
+  modoDiaSuelto = false,
+  fechaMin = null,
+  fechaMax = null,
+  onClose,
+  onSave
+}) {
+  const [contratoSeleccionado, setContratoSeleccionado] = useState(
+    contratoIdProp ? String(contratoIdProp) : (contratos[0]?.id ? String(contratos[0].id) : '')
+  );
   const [formData, setFormData] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: fechaMin || new Date().toISOString().split('T')[0],
     hora_entrada: '',
     hora_salida: '',
     descripcion: ''
@@ -28,9 +40,15 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
   } = useFormConfirmations({ onClose });
 
   useEffect(() => {
+    if (contratoIdProp) {
+      setContratoSeleccionado(String(contratoIdProp));
+    }
+  }, [contratoIdProp]);
+
+  useEffect(() => {
     if (horario) {
       const data = {
-        fecha: horario.fecha || new Date().toISOString().split('T')[0],
+        fecha: horario.fecha || fechaMin || new Date().toISOString().split('T')[0],
         hora_entrada: horario.hora_entrada || '',
         hora_salida: horario.hora_salida || '',
         descripcion: horario.descripcion || ''
@@ -40,16 +58,21 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
       if (horario.hora_entrada && horario.hora_salida && horario.hora_salida < horario.hora_entrada) {
         setTerminaDiaSiguiente(true);
       }
+      if (horario.contrato_id) {
+        setContratoSeleccionado(String(horario.contrato_id));
+      }
     } else {
       const data = {
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: fechaMin || new Date().toISOString().split('T')[0],
         hora_entrada: '',
         hora_salida: '',
         descripcion: ''
       };
       resetSnapshot(data);
     }
-  }, [horario, resetSnapshot]);
+  }, [horario, resetSnapshot, fechaMin]);
+
+  const contratoId = contratoIdProp || (contratoSeleccionado ? parseInt(contratoSeleccionado, 10) : null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -64,12 +87,31 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
     setError('');
 
     try {
+      if (!contratoId) {
+        setError('Selecciona un contrato');
+        setLoading(false);
+        return;
+      }
+
+      if (fechaMin && formData.fecha < fechaMin) {
+        setError(`La fecha debe ser posterior o igual a ${formatFechaEU(fechaMin)}`);
+        setLoading(false);
+        return;
+      }
+
+      if (fechaMax && formData.fecha > fechaMax) {
+        setError(`La fecha debe ser anterior o igual a ${formatFechaEU(fechaMax)}`);
+        setLoading(false);
+        return;
+      }
+
       const dataToSend = {
         contrato_id: contratoId,
         fecha: formData.fecha,
         hora_entrada: formData.hora_entrada,
         hora_salida: formData.hora_salida,
-        descripcion: formData.descripcion
+        descripcion: formData.descripcion,
+        es_dia_suelto: modoDiaSuelto || horario?.es_dia_suelto === 1 ? 1 : 0
       };
 
       let response;
@@ -103,7 +145,9 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
           <div className="flex items-center space-x-2">
             <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-primary-600" />
             <h2 className="text-base sm:text-lg font-semibold text-gray-900">
-              {horario ? 'Editar Horario' : 'Registrar Horario'}
+              {modoDiaSuelto
+                ? (horario ? 'Editar día suelto' : 'Agregar día suelto')
+                : (horario ? 'Editar Horario' : 'Registrar Horario')}
             </h2>
           </div>
           <button
@@ -124,6 +168,35 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
             </div>
           )}
 
+          {modoDiaSuelto && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-900">
+                Día trabajado fuera del contrato habitual (p. ej. antes de formalizarlo).
+                Todas las horas se liquidan como extras al valor hora extra del contrato.
+              </p>
+            </div>
+          )}
+
+          {!contratoIdProp && contratos.length > 0 && (
+            <div>
+              <label htmlFor="contrato_id" className="form-label">
+                Contrato *
+              </label>
+              <select
+                id="contrato_id"
+                required
+                value={contratoSeleccionado}
+                onChange={(e) => setContratoSeleccionado(e.target.value)}
+                className="input-field"
+              >
+                <option value="">Seleccionar contrato</option>
+                {contratos.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Fecha */}
           <div>
             <label htmlFor="fecha" className="form-label">
@@ -134,6 +207,8 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
               id="fecha"
               name="fecha"
               required
+              min={fechaMin || undefined}
+              max={fechaMax || undefined}
               value={formData.fecha}
               onChange={handleChange}
               className="input-field"
@@ -256,10 +331,14 @@ function HorarioContratoForm({ horario, contratoId, onClose, onSave }) {
         isOpen={showSaveModal}
         onClose={cancelSave}
         onConfirm={confirmSave}
-        title={horario ? 'Guardar cambios del horario' : 'Registrar horario'}
-        message={horario
-          ? 'Se actualizará el registro de horario. Esto puede afectar el cálculo de horas extras del periodo.'
-          : 'Se registrará un nuevo horario para el contrato seleccionado.'}
+        title={modoDiaSuelto
+          ? (horario ? 'Guardar día suelto' : 'Registrar día suelto')
+          : (horario ? 'Guardar cambios del horario' : 'Registrar horario')}
+        message={modoDiaSuelto
+          ? 'Se incluirá este día en el informe del contrato. Todas sus horas se contarán como extras.'
+          : (horario
+            ? 'Se actualizará el registro de horario. Esto puede afectar el cálculo de horas extras del periodo.'
+            : 'Se registrará un nuevo horario para el contrato seleccionado.')}
         confirmText={horario ? 'Guardar cambios' : 'Registrar'}
         cancelText="Cancelar"
         type="info"

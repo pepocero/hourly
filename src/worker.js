@@ -954,7 +954,7 @@ export default {
       // POST /api/horarios-contrato - Crear horario de contrato
       if (url.pathname === '/api/horarios-contrato' && request.method === 'POST') {
         try {
-          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion } = await request.json();
+          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion, es_dia_suelto } = await request.json();
 
           if (!contrato_id || !fecha || !hora_entrada) {
             return new Response(JSON.stringify({ 
@@ -988,7 +988,8 @@ export default {
             hora_entrada,
             hora_salida,
             duracionMinutos,
-            descripcion
+            descripcion,
+            es_dia_suelto ? 1 : 0
           );
 
           if (result.success) {
@@ -1036,7 +1037,7 @@ export default {
       if (url.pathname.startsWith('/api/horarios-contrato/') && request.method === 'PUT') {
         try {
           const id = url.pathname.split('/').pop();
-          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion } = await request.json();
+          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion, es_dia_suelto } = await request.json();
           
           // Calcular duración
           let duracionMinutos = 0;
@@ -1058,7 +1059,8 @@ export default {
             hora_entrada,
             hora_salida,
             duracionMinutos,
-            descripcion
+            descripcion,
+            es_dia_suelto ? 1 : 0
           );
           
           if (result.success && result.meta.changes > 0) {

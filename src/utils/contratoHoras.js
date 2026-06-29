@@ -220,6 +220,10 @@ export function calcularAjusteSemana(liquidacionDefinitiva, liquidacionAnticipad
   };
 }
 
+export function isDiaSuelto(horario) {
+  return horario?.es_dia_suelto === 1 || horario?.es_dia_suelto === true || horario?.esDiaSuelto === true;
+}
+
 export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = null, fechaFin = null) {
   const c = normalizarContrato(contrato);
 
@@ -227,16 +231,30 @@ export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = 
     return {
       horasExtras: 0,
       horasTrabajadas: 0,
+      horasExtrasContrato: 0,
+      horasExtrasDiasSueltos: 0,
       importe: 0,
       horasSemanales: c.horas_semanales,
       valorHoraExtra: c.valor_hora_extra,
       diasLaborables: c.dias_laborables,
-      semanas: []
+      semanas: [],
+      diasSueltos: []
     };
   }
 
-  const horariosPorSemana = {};
+  const horariosNormales = [];
+  const diasSueltos = [];
+
   horarios.forEach((horario) => {
+    if (isDiaSuelto(horario)) {
+      diasSueltos.push(horario);
+    } else {
+      horariosNormales.push(horario);
+    }
+  });
+
+  const horariosPorSemana = {};
+  horariosNormales.forEach((horario) => {
     const semanaLunes = getMondayOfWeek(horario.fecha);
     if (!horariosPorSemana[semanaLunes]) {
       horariosPorSemana[semanaLunes] = [];
@@ -244,7 +262,7 @@ export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = 
     horariosPorSemana[semanaLunes].push(horario);
   });
 
-  let horasExtras = 0;
+  let horasExtrasContrato = 0;
   let horasTrabajadas = 0;
   const semanas = [];
 
@@ -257,18 +275,36 @@ export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = 
       fechaFin
     );
     horasTrabajadas += liquidacion.horasTrabajadas;
-    horasExtras += liquidacion.horasExtras;
+    horasExtrasContrato += liquidacion.horasExtras;
     semanas.push(liquidacion);
   });
+
+  const diasSueltosDetalle = diasSueltos.map((horario) => {
+    const horas = (horario.duracion_minutos || 0) / 60;
+    return {
+      horario,
+      horas,
+      importe: horas * c.valor_hora_extra
+    };
+  });
+
+  const horasExtrasDiasSueltos = diasSueltosDetalle.reduce((sum, d) => sum + d.horas, 0);
+  const horasTrabajadasDiasSueltos = horasExtrasDiasSueltos;
+  horasTrabajadas += horasTrabajadasDiasSueltos;
+
+  const horasExtras = horasExtrasContrato + horasExtrasDiasSueltos;
 
   return {
     horasExtras,
     horasTrabajadas,
+    horasExtrasContrato,
+    horasExtrasDiasSueltos,
     importe: horasExtras * c.valor_hora_extra,
     horasSemanales: c.horas_semanales,
     valorHoraExtra: c.valor_hora_extra,
     diasLaborables: c.dias_laborables,
-    semanas
+    semanas,
+    diasSueltos: diasSueltosDetalle
   };
 }
 

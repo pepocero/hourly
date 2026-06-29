@@ -1,6 +1,7 @@
 // Servicio para generar PDFs de informes
 import jsPDF from 'jspdf';
 import { formatFechaEU } from '../utils/formatFecha';
+import { isDiaSuelto } from '../utils/contratoHoras';
 
 class PDFService {
   constructor() {
@@ -259,8 +260,13 @@ class PDFService {
     this.doc.setFontSize(8);
     this.doc.setFont('helvetica', 'normal');
 
+    let tieneDiasSueltos = false;
+
     Object.entries(subtotalesPorContrato).forEach(([, subtotal]) => {
       subtotal.registros.forEach((horario) => {
+        if (isDiaSuelto(horario)) {
+          tieneDiasSueltos = true;
+        }
         if (currentY > 250) {
           this.doc.addPage();
           currentY = 20;
@@ -268,8 +274,11 @@ class PDFService {
 
         xPos = 20;
         const nombreContrato = horario.contrato_nombre || subtotal.nombre || 'Sin contrato';
+        const fechaLabel = isDiaSuelto(horario)
+          ? `${this.formatDate(horario.fecha)} *`
+          : this.formatDate(horario.fecha);
         const rowData = [
-          this.formatDate(horario.fecha),
+          fechaLabel,
           this.truncateText(nombreContrato, 18),
           this.formatTime(horario.hora_entrada),
           this.formatTime(horario.hora_salida),
@@ -330,6 +339,12 @@ class PDFService {
 
     currentY += totalRowHeight + 2;
     this.doc.setTextColor(0, 0, 0);
+
+    if (tieneDiasSueltos) {
+      this.doc.setFontSize(7);
+      this.doc.setFont('helvetica', 'italic');
+      this.doc.text('* Día suelto: jornada fuera del contrato habitual, liquidada íntegramente como extras.', 20, currentY + 4);
+    }
   }
 
   // Agregar pie de página

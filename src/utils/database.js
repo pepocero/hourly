@@ -229,22 +229,22 @@ export class DatabaseService {
     return await stmt.bind(...params).all();
   }
 
-  async createHorarioContrato(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion) {
+  async createHorarioContrato(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto = 0) {
     const stmt = this.db.prepare(`
-      INSERT INTO horarios_contrato (user_id, contrato_id, fecha, hora_entrada, hora_salida, duracion_minutos, descripcion)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO horarios_contrato (user_id, contrato_id, fecha, hora_entrada, hora_salida, duracion_minutos, descripcion, es_dia_suelto)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    return await stmt.bind(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion).run();
+    return await stmt.bind(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto ? 1 : 0).run();
   }
 
-  async updateHorarioContrato(horarioId, userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion) {
+  async updateHorarioContrato(horarioId, userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto = 0) {
     const stmt = this.db.prepare(`
       UPDATE horarios_contrato 
       SET contrato_id = ?, fecha = ?, hora_entrada = ?, hora_salida = ?, 
-          duracion_minutos = ?, descripcion = ?, updated_at = CURRENT_TIMESTAMP
+          duracion_minutos = ?, descripcion = ?, es_dia_suelto = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
-    return await stmt.bind(contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, horarioId, userId).run();
+    return await stmt.bind(contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto ? 1 : 0, horarioId, userId).run();
   }
 
   async deleteHorarioContrato(horarioId, userId) {

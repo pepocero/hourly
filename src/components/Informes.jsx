@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2 } from 'lucide-react';
+import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek } from '../utils/contratoHoras';
+import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek, isDiaSuelto } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
+import HorarioContratoForm from './HorarioContratoForm';
 
 function Informes() {
   const [tipoInforme, setTipoInforme] = useState('detallado');
@@ -26,6 +27,10 @@ function Informes() {
   const [grupoLiquidacionToAnular, setGrupoLiquidacionToAnular] = useState(null);
   const [showAnularLiquidacionModal, setShowAnularLiquidacionModal] = useState(false);
   const [anulandoLiquidacion, setAnulandoLiquidacion] = useState(false);
+  const [showDiaSueltoForm, setShowDiaSueltoForm] = useState(false);
+  const [diaSueltoEditando, setDiaSueltoEditando] = useState(null);
+  const [horarioDiaSueltoToDelete, setHorarioDiaSueltoToDelete] = useState(null);
+  const [eliminandoDiaSuelto, setEliminandoDiaSuelto] = useState(false);
 
   useEffect(() => {
     loadProyectos();
@@ -208,9 +213,12 @@ function Informes() {
       subtotal.totalHoras = totalHoras;
       subtotal.horasEsperadas = resultado.semanas.reduce((sum, s) => sum + s.horasEsperadas, 0);
       subtotal.horasExtras = resultado.horasExtras;
-      subtotal.horasNormales = Math.min(totalHoras, subtotal.horasEsperadas);
+      subtotal.horasExtrasContrato = resultado.horasExtrasContrato;
+      subtotal.horasExtrasDiasSueltos = resultado.horasExtrasDiasSueltos;
+      subtotal.horasNormales = Math.max(0, totalHoras - resultado.horasExtras);
       subtotal.totalExtras = resultado.importe;
       subtotal.semanas = resultado.semanas;
+      subtotal.diasSueltos = resultado.diasSueltos;
     });
     
     return subtotales;
@@ -505,6 +513,45 @@ function Informes() {
       setGrupoLiquidacionToAnular(null);
     }
   };
+
+  const handleDiaSueltoGuardado = async () => {
+    setShowDiaSueltoForm(false);
+    setDiaSueltoEditando(null);
+    await loadDatos();
+  };
+
+  const handleEliminarDiaSueltoConfirm = async () => {
+    if (!horarioDiaSueltoToDelete) return;
+    setEliminandoDiaSuelto(true);
+
+    try {
+      const response = await apiService.deleteHorarioContrato(horarioDiaSueltoToDelete.id);
+      if (response.success) {
+        setHorarioDiaSueltoToDelete(null);
+        await loadDatos();
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'No se pudo eliminar',
+          message: response.error || 'Error al eliminar el día suelto.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'No se pudo eliminar',
+        message: 'Error al eliminar el día suelto. Inténtalo de nuevo.',
+        type: 'error'
+      });
+    } finally {
+      setEliminandoDiaSuelto(false);
+    }
+  };
+
+  const contratosParaDiaSuelto = contratoFiltro
+    ? contratos.filter((c) => c.id === parseInt(contratoFiltro, 10))
+    : contratos;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1202,11 +1249,32 @@ function Informes() {
       )}
 
       {/* Informe de Contratos - Resumen por contrato */}
-      {tipoDatos === 'contratos' && horariosContrato.length > 0 && (
+      {tipoDatos === 'contratos' && tipoInforme === 'detallado' && horariosContrato.length > 0 && (
         <div className="card">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-            Informe de Contratos - {formatDate(fechaInicio)} a {formatDate(fechaFin)}
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+              Informe de Contratos - {formatDate(fechaInicio)} a {formatDate(fechaFin)}
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                setDiaSueltoEditando(null);
+                setShowDiaSueltoForm(true);
+              }}
+              disabled={contratosParaDiaSuelto.length === 0}
+              className="btn-secondary flex items-center justify-center space-x-2 text-sm px-3 py-2 w-full sm:w-auto disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Agregar día suelto</span>
+            </button>
+          </div>
+
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-900">
+              Los días sueltos son jornadas trabajadas fuera del contrato habitual (p. ej. antes de formalizarlo).
+              Se liquidan íntegramente como horas extras junto al resto del informe.
+            </p>
+          </div>
 
           <div className="space-y-4">
             {Object.entries(subtotalesPorContrato).map(([contratoId, subtotal]) => (
@@ -1231,6 +1299,11 @@ function Informes() {
                     <p className="text-xs text-gray-600 mb-1">Horas Extras</p>
                     <p className="text-lg font-bold text-orange-600">{subtotal.horasExtras.toFixed(2)}h</p>
                     <p className="text-xs text-gray-500">{formatEuroPorHora(subtotal.valorHoraExtra)}</p>
+                    {(subtotal.horasExtrasDiasSueltos || 0) > 0 && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        incl. {(subtotal.horasExtrasDiasSueltos || 0).toFixed(2)}h días sueltos
+                      </p>
+                    )}
                   </div>
                   <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                     <p className="text-xs text-gray-600 mb-1">Total a Cobrar</p>
@@ -1244,14 +1317,49 @@ function Informes() {
                   <p className="text-xs font-medium text-gray-600 mb-2">Horarios Registrados ({subtotal.registros.length})</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {subtotal.registros.map((horario) => (
-                      <div key={horario.id} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded border border-gray-200 text-sm">
-                        <div>
-                          <span className="font-medium">{formatDate(horario.fecha)}</span>
-                          <span className="mx-2 text-gray-400">•</span>
-                          <span>{formatTime(horario.hora_entrada)} - {formatTime(horario.hora_salida)}</span>
+                      <div key={horario.id} className={`flex justify-between items-center py-2 px-3 rounded border text-sm ${isDiaSuelto(horario) ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{formatDate(horario.fecha)}</span>
+                            {isDiaSuelto(horario) && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                                Día suelto
+                              </span>
+                            )}
+                            <span className="text-gray-400">•</span>
+                            <span>{formatTime(horario.hora_entrada)} - {formatTime(horario.hora_salida)}</span>
+                          </div>
+                          {horario.descripcion && (
+                            <p className="text-xs text-gray-500 mt-1 truncate">{horario.descripcion}</p>
+                          )}
                         </div>
-                        <div className="text-primary-600 font-medium">
-                          {formatDuration(horario.duracion_minutos)}
+                        <div className="flex items-center gap-2 ml-2 shrink-0">
+                          <span className="text-primary-600 font-medium">
+                            {formatDuration(horario.duracion_minutos)}
+                          </span>
+                          {isDiaSuelto(horario) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDiaSueltoEditando(horario);
+                                  setShowDiaSueltoForm(true);
+                                }}
+                                className="p-1 text-gray-500 hover:text-primary-600"
+                                title="Editar día suelto"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setHorarioDiaSueltoToDelete(horario)}
+                                className="p-1 text-gray-500 hover:text-red-600"
+                                title="Eliminar día suelto"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1284,11 +1392,26 @@ function Informes() {
         <div className="card text-center py-8">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No hay datos para mostrar</h3>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             {tipoDatos === 'liquidaciones'
               ? 'No hay liquidaciones registradas en el rango de fechas seleccionado.'
-              : `Selecciona un rango de fechas para ver tus ${tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.`}
+              : tipoDatos === 'contratos' && tipoInforme === 'detallado'
+                ? 'No hay horarios de contrato en este periodo. Puedes agregar un día suelto si trabajaste antes de formalizar el contrato.'
+                : `Selecciona un rango de fechas para ver tus ${tipoDatos === 'proyectos' ? 'horas trabajadas' : 'horarios de contrato'}.`}
           </p>
+          {tipoDatos === 'contratos' && tipoInforme === 'detallado' && contratosParaDiaSuelto.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setDiaSueltoEditando(null);
+                setShowDiaSueltoForm(true);
+              }}
+              className="btn-primary inline-flex items-center space-x-2 text-sm px-4 py-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Agregar día suelto</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -1311,6 +1434,33 @@ function Informes() {
             </button>
           </div>
         </div>
+      )}
+
+      <ConfirmModal
+        isOpen={!!horarioDiaSueltoToDelete}
+        onClose={() => !eliminandoDiaSuelto && setHorarioDiaSueltoToDelete(null)}
+        onConfirm={handleEliminarDiaSueltoConfirm}
+        title="Eliminar día suelto"
+        message={`¿Eliminar el día suelto del ${horarioDiaSueltoToDelete ? formatDate(horarioDiaSueltoToDelete.fecha) : ''}?`}
+        confirmText={eliminandoDiaSuelto ? 'Eliminando...' : 'Eliminar'}
+        cancelText="Cancelar"
+        type="danger"
+      />
+
+      {showDiaSueltoForm && (
+        <HorarioContratoForm
+          horario={diaSueltoEditando}
+          contratoId={contratoFiltro ? parseInt(contratoFiltro, 10) : null}
+          contratos={contratosParaDiaSuelto}
+          modoDiaSuelto
+          fechaMin={fechaInicio}
+          fechaMax={fechaFin}
+          onClose={() => {
+            setShowDiaSueltoForm(false);
+            setDiaSueltoEditando(null);
+          }}
+          onSave={handleDiaSueltoGuardado}
+        />
       )}
 
       <ConfirmModal
