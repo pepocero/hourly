@@ -199,7 +199,7 @@ export class DatabaseService {
 
   // ========== HORARIOS DE CONTRATO ==========
   
-  async getHorariosContrato(userId, contratoId = null, fechaInicio = null, fechaFin = null) {
+  async getHorariosContrato(userId, contratoId = null, fechaInicio = null, fechaFin = null, paraInforme = false) {
     let query = `
       SELECT hc.*, c.nombre as contrato_nombre, c.horas_semanales, c.valor_hora_extra, c.dias_laborables, c.dia_cierre_liquidacion
       FROM horarios_contrato hc
@@ -213,14 +213,22 @@ export class DatabaseService {
       params.push(contratoId);
     }
 
-    if (fechaInicio) {
-      query += ` AND hc.fecha >= ?`;
-      params.push(fechaInicio);
-    }
+    if (fechaInicio && fechaFin && paraInforme) {
+      query += ` AND (
+        (hc.fecha >= ? AND hc.fecha <= ?)
+        OR (hc.es_dia_suelto = 1 AND hc.informe_periodo_inicio = ? AND hc.informe_periodo_fin = ?)
+      )`;
+      params.push(fechaInicio, fechaFin, fechaInicio, fechaFin);
+    } else {
+      if (fechaInicio) {
+        query += ` AND hc.fecha >= ?`;
+        params.push(fechaInicio);
+      }
 
-    if (fechaFin) {
-      query += ` AND hc.fecha <= ?`;
-      params.push(fechaFin);
+      if (fechaFin) {
+        query += ` AND hc.fecha <= ?`;
+        params.push(fechaFin);
+      }
     }
 
     query += ` ORDER BY hc.fecha DESC, hc.hora_entrada DESC`;
@@ -229,22 +237,47 @@ export class DatabaseService {
     return await stmt.bind(...params).all();
   }
 
-  async createHorarioContrato(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto = 0) {
+  async createHorarioContrato(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto = 0, informePeriodoInicio = null, informePeriodoFin = null) {
     const stmt = this.db.prepare(`
-      INSERT INTO horarios_contrato (user_id, contrato_id, fecha, hora_entrada, hora_salida, duracion_minutos, descripcion, es_dia_suelto)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO horarios_contrato (user_id, contrato_id, fecha, hora_entrada, hora_salida, duracion_minutos, descripcion, es_dia_suelto, informe_periodo_inicio, informe_periodo_fin)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    return await stmt.bind(userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto ? 1 : 0).run();
+    return await stmt.bind(
+      userId,
+      contratoId,
+      fecha,
+      horaEntrada,
+      horaSalida,
+      duracionMinutos,
+      descripcion,
+      esDiaSuelto ? 1 : 0,
+      informePeriodoInicio,
+      informePeriodoFin
+    ).run();
   }
 
-  async updateHorarioContrato(horarioId, userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto = 0) {
+  async updateHorarioContrato(horarioId, userId, contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto = 0, informePeriodoInicio = null, informePeriodoFin = null) {
     const stmt = this.db.prepare(`
       UPDATE horarios_contrato 
       SET contrato_id = ?, fecha = ?, hora_entrada = ?, hora_salida = ?, 
-          duracion_minutos = ?, descripcion = ?, es_dia_suelto = ?, updated_at = CURRENT_TIMESTAMP
+          duracion_minutos = ?, descripcion = ?, es_dia_suelto = ?,
+          informe_periodo_inicio = ?, informe_periodo_fin = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
-    return await stmt.bind(contratoId, fecha, horaEntrada, horaSalida, duracionMinutos, descripcion, esDiaSuelto ? 1 : 0, horarioId, userId).run();
+    return await stmt.bind(
+      contratoId,
+      fecha,
+      horaEntrada,
+      horaSalida,
+      duracionMinutos,
+      descripcion,
+      esDiaSuelto ? 1 : 0,
+      informePeriodoInicio,
+      informePeriodoFin,
+      horarioId,
+      userId
+    ).run();
   }
 
   async deleteHorarioContrato(horarioId, userId) {

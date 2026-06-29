@@ -98,7 +98,8 @@ function Informes() {
         const horariosResponse = await apiService.getHorariosContrato(
           contratoFiltro || null,
           fechaInicio,
-          fechaFin
+          fechaFin,
+          true
         );
         if (horariosResponse.success) {
           setHorariosContrato(horariosResponse.data);
@@ -1272,7 +1273,7 @@ function Informes() {
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-sm text-amber-900">
               Los días sueltos son jornadas trabajadas fuera del contrato habitual (p. ej. antes de formalizarlo).
-              Se liquidan íntegramente como horas extras junto al resto del informe.
+              Pueden tener una fecha anterior al periodo del informe y se liquidan íntegramente como horas extras.
             </p>
           </div>
 
@@ -1453,8 +1454,8 @@ function Informes() {
           contratoId={contratoFiltro ? parseInt(contratoFiltro, 10) : null}
           contratos={contratosParaDiaSuelto}
           modoDiaSuelto
-          fechaMin={fechaInicio}
-          fechaMax={fechaFin}
+          informePeriodoInicio={fechaInicio}
+          informePeriodoFin={fechaFin}
           onClose={() => {
             setShowDiaSueltoForm(false);
             setDiaSueltoEditando(null);

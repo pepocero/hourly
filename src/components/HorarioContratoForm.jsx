@@ -12,6 +12,8 @@ function HorarioContratoForm({
   modoDiaSuelto = false,
   fechaMin = null,
   fechaMax = null,
+  informePeriodoInicio = null,
+  informePeriodoFin = null,
   onClose,
   onSave
 }) {
@@ -93,16 +95,18 @@ function HorarioContratoForm({
         return;
       }
 
-      if (fechaMin && formData.fecha < fechaMin) {
-        setError(`La fecha debe ser posterior o igual a ${formatFechaEU(fechaMin)}`);
-        setLoading(false);
-        return;
-      }
+      if (!modoDiaSuelto) {
+        if (fechaMin && formData.fecha < fechaMin) {
+          setError(`La fecha debe ser posterior o igual a ${formatFechaEU(fechaMin)}`);
+          setLoading(false);
+          return;
+        }
 
-      if (fechaMax && formData.fecha > fechaMax) {
-        setError(`La fecha debe ser anterior o igual a ${formatFechaEU(fechaMax)}`);
-        setLoading(false);
-        return;
+        if (fechaMax && formData.fecha > fechaMax) {
+          setError(`La fecha debe ser anterior o igual a ${formatFechaEU(fechaMax)}`);
+          setLoading(false);
+          return;
+        }
       }
 
       const dataToSend = {
@@ -111,7 +115,13 @@ function HorarioContratoForm({
         hora_entrada: formData.hora_entrada,
         hora_salida: formData.hora_salida,
         descripcion: formData.descripcion,
-        es_dia_suelto: modoDiaSuelto || horario?.es_dia_suelto === 1 ? 1 : 0
+        es_dia_suelto: modoDiaSuelto || horario?.es_dia_suelto === 1 ? 1 : 0,
+        informe_periodo_inicio: modoDiaSuelto
+          ? (informePeriodoInicio || horario?.informe_periodo_inicio || null)
+          : null,
+        informe_periodo_fin: modoDiaSuelto
+          ? (informePeriodoFin || horario?.informe_periodo_fin || null)
+          : null
       };
 
       let response;
@@ -172,7 +182,8 @@ function HorarioContratoForm({
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
               <p className="text-sm text-amber-900">
                 Día trabajado fuera del contrato habitual (p. ej. antes de formalizarlo).
-                Todas las horas se liquidan como extras al valor hora extra del contrato.
+                Puedes indicar una fecha anterior al periodo del informe; se incluirá en este informe
+                y se liquidará íntegramente como horas extras.
               </p>
             </div>
           )}
@@ -207,8 +218,8 @@ function HorarioContratoForm({
               id="fecha"
               name="fecha"
               required
-              min={fechaMin || undefined}
-              max={fechaMax || undefined}
+              min={!modoDiaSuelto && fechaMin ? fechaMin : undefined}
+              max={!modoDiaSuelto && fechaMax ? fechaMax : undefined}
               value={formData.fecha}
               onChange={handleChange}
               className="input-field"

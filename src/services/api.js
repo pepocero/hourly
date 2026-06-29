@@ -251,11 +251,12 @@ class ApiService {
 
   // ========== HORARIOS DE CONTRATO ==========
 
-  async getHorariosContrato(contratoId = null, fechaInicio = null, fechaFin = null) {
+  async getHorariosContrato(contratoId = null, fechaInicio = null, fechaFin = null, paraInforme = false) {
     const params = new URLSearchParams();
     if (contratoId) params.append('contrato_id', contratoId);
     if (fechaInicio) params.append('fecha_inicio', fechaInicio);
     if (fechaFin) params.append('fecha_fin', fechaFin);
+    if (paraInforme) params.append('para_informe', '1');
 
     const endpoint = `/api/horarios-contrato${params.toString() ? `?${params.toString()}` : ''}`;
     return this.request(endpoint);

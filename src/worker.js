@@ -915,12 +915,14 @@ export default {
           const contratoId = url.searchParams.get('contrato_id');
           const fechaInicio = url.searchParams.get('fecha_inicio');
           const fechaFin = url.searchParams.get('fecha_fin');
+          const paraInforme = url.searchParams.get('para_informe') === '1';
           
           const horarios = await db.getHorariosContrato(
             authResult.userId,
             contratoId ? parseInt(contratoId) : null,
             fechaInicio,
-            fechaFin
+            fechaFin,
+            paraInforme
           );
           
           return new Response(JSON.stringify({
@@ -954,7 +956,16 @@ export default {
       // POST /api/horarios-contrato - Crear horario de contrato
       if (url.pathname === '/api/horarios-contrato' && request.method === 'POST') {
         try {
-          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion, es_dia_suelto } = await request.json();
+          const {
+            contrato_id,
+            fecha,
+            hora_entrada,
+            hora_salida,
+            descripcion,
+            es_dia_suelto,
+            informe_periodo_inicio,
+            informe_periodo_fin
+          } = await request.json();
 
           if (!contrato_id || !fecha || !hora_entrada) {
             return new Response(JSON.stringify({ 
@@ -989,7 +1000,9 @@ export default {
             hora_salida,
             duracionMinutos,
             descripcion,
-            es_dia_suelto ? 1 : 0
+            es_dia_suelto ? 1 : 0,
+            informe_periodo_inicio || null,
+            informe_periodo_fin || null
           );
 
           if (result.success) {
@@ -1037,7 +1050,16 @@ export default {
       if (url.pathname.startsWith('/api/horarios-contrato/') && request.method === 'PUT') {
         try {
           const id = url.pathname.split('/').pop();
-          const { contrato_id, fecha, hora_entrada, hora_salida, descripcion, es_dia_suelto } = await request.json();
+          const {
+            contrato_id,
+            fecha,
+            hora_entrada,
+            hora_salida,
+            descripcion,
+            es_dia_suelto,
+            informe_periodo_inicio,
+            informe_periodo_fin
+          } = await request.json();
           
           // Calcular duración
           let duracionMinutos = 0;
@@ -1060,7 +1082,9 @@ export default {
             hora_salida,
             duracionMinutos,
             descripcion,
-            es_dia_suelto ? 1 : 0
+            es_dia_suelto ? 1 : 0,
+            informe_periodo_inicio || null,
+            informe_periodo_fin || null
           );
           
           if (result.success && result.meta.changes > 0) {
