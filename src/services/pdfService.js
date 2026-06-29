@@ -47,12 +47,17 @@ class PDFService {
 
     this.doc.setFontSize(16);
     this.doc.setFont('helvetica', 'bold');
-    this.doc.text(title, 20, 30);
+    const titleLines = this.doc.splitTextToSize(String(title || ''), 170);
+    let y = 30;
+    titleLines.forEach((line) => {
+      this.doc.text(line, 20, y);
+      y += 7;
+    });
 
     this.doc.setFontSize(12);
     this.doc.setFont('helvetica', 'normal');
     const subtitleLines = String(subtitle || '').split('\n');
-    let y = 42;
+    y += 2;
     subtitleLines.forEach((line) => {
       this.doc.text(line, 20, y);
       y += 6;
@@ -246,8 +251,8 @@ class PDFService {
     this.doc.rect(20, currentY - 5, 170, 8, 'F');
     this.doc.setTextColor(255, 255, 255);
 
-    const headers = ['Fecha', 'Contrato', 'Ent.', 'Sal.', 'Duración', 'Comentario'];
-    const colWidths = [22, 32, 16, 16, 20, 64];
+    const headers = ['Fecha', 'Ent.', 'Sal.', 'Duración', 'Comentario'];
+    const colWidths = [28, 22, 22, 28, 70];
     let xPos = 20;
 
     headers.forEach((header, index) => {
@@ -280,17 +285,15 @@ class PDFService {
         }
 
         xPos = 20;
-        const nombreContrato = horario.contrato_nombre || subtotal.nombre || 'Sin contrato';
         const fechaLabel = esSuelto
           ? `${this.formatDate(horario.fecha)} *`
           : this.formatDate(horario.fecha);
         const rowData = [
           fechaLabel,
-          this.truncateText(nombreContrato, 12),
           this.formatTime(horario.hora_entrada),
           this.formatTime(horario.hora_salida),
           this.formatDuration(horario.duracion_minutos),
-          this.truncateText(horario.descripcion || '-', 32)
+          this.truncateText(horario.descripcion || '-', 38)
         ];
 
         rowData.forEach((data, index) => {

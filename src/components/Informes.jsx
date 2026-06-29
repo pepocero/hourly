@@ -419,13 +419,16 @@ function Informes() {
             0
           );
           const listaContratos = Object.values(subtotalesPorContrato);
+          const contratosTitle = listaContratos.length === 1
+            ? `Informe de Horarios de Contrato ${listaContratos[0].nombre}`
+            : 'Informe de Horarios de Contrato';
           const contratosSubtitle = listaContratos.length === 1
             ? `Contrato de ${listaContratos[0].horasSemanales} horas por semana.`
             : listaContratos
                 .map((c) => `Contrato de ${c.horasSemanales} horas por semana (${c.nombre}).`)
                 .join('\n');
           pdfService.generateContratosPDF(
-            title,
+            contratosTitle,
             contratosSubtitle,
             fechaInicio,
             fechaFin,
