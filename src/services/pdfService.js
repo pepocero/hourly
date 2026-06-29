@@ -137,8 +137,8 @@ class PDFService {
     this.doc.rect(20, currentY - 5, 170, 8, 'F');
     this.doc.setTextColor(255, 255, 255);
 
-    const headers = ['Fecha', 'Proyecto', 'Inicio', 'Fin', 'Duración', 'Total'];
-    const colWidths = [25, 40, 20, 20, 25, 25];
+    const headers = ['Fecha', 'Proyecto', 'Inicio', 'Fin', 'Duración', 'Total', 'Comentario'];
+    const colWidths = [22, 32, 16, 16, 20, 20, 44];
     let xPos = 20;
 
     headers.forEach((header, index) => {
@@ -163,11 +163,12 @@ class PDFService {
         const nombreProyecto = hora.proyecto_nombre || 'Sin proyecto';
         const rowData = [
           this.formatDate(hora.fecha),
-          this.truncateText(nombreProyecto, 15),
+          this.truncateText(nombreProyecto, 12),
           this.formatTime(hora.hora_inicio),
           this.formatTime(hora.hora_fin),
           this.formatDuration(hora.duracion_minutos),
-          `€${parseFloat(hora.total || 0).toFixed(2)}`
+          `€${parseFloat(hora.total || 0).toFixed(2)}`,
+          this.truncateText(hora.descripcion || '-', 22)
         ];
 
         rowData.forEach((data, index) => {
@@ -245,8 +246,8 @@ class PDFService {
     this.doc.rect(20, currentY - 5, 170, 8, 'F');
     this.doc.setTextColor(255, 255, 255);
 
-    const headers = ['Fecha', 'Contrato', 'Entrada', 'Salida', 'Duración'];
-    const colWidths = [28, 45, 22, 22, 28];
+    const headers = ['Fecha', 'Contrato', 'Ent.', 'Sal.', 'Duración', 'Comentario'];
+    const colWidths = [22, 32, 16, 16, 20, 64];
     let xPos = 20;
 
     headers.forEach((header, index) => {
@@ -279,10 +280,11 @@ class PDFService {
           : this.formatDate(horario.fecha);
         const rowData = [
           fechaLabel,
-          this.truncateText(nombreContrato, 18),
+          this.truncateText(nombreContrato, 12),
           this.formatTime(horario.hora_entrada),
           this.formatTime(horario.hora_salida),
-          this.formatDuration(horario.duracion_minutos)
+          this.formatDuration(horario.duracion_minutos),
+          this.truncateText(horario.descripcion || '-', 32)
         ];
 
         rowData.forEach((data, index) => {
@@ -441,6 +443,19 @@ class PDFService {
           currentY
         );
         currentY += 5;
+        if (liq.notas?.trim()) {
+          const notasLines = this.doc.splitTextToSize(`  Comentario: ${liq.notas.trim()}`, 170);
+          notasLines.forEach((line) => {
+            if (currentY > 270) {
+              this.doc.addPage();
+              currentY = 20;
+            }
+            this.doc.setFont('helvetica', 'italic');
+            this.doc.text(line, 20, currentY);
+            currentY += 4;
+          });
+          this.doc.setFont('helvetica', 'normal');
+        }
       });
 
       this.doc.text(`  Total semana: €${importeGrupo.toFixed(2)}`, 20, currentY);
