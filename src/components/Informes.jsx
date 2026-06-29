@@ -409,9 +409,15 @@ function Informes() {
             (sum, s) => sum + (s.horasExtras || 0),
             0
           );
+          const listaContratos = Object.values(subtotalesPorContrato);
+          const contratosSubtitle = listaContratos.length === 1
+            ? `Contrato de ${listaContratos[0].horasSemanales} horas por semana.`
+            : listaContratos
+                .map((c) => `Contrato de ${c.horasSemanales} horas por semana (${c.nombre}).`)
+                .join('\n');
           pdfService.generateContratosPDF(
             title,
-            subtitle,
+            contratosSubtitle,
             fechaInicio,
             fechaFin,
             subtotalesPorContrato,

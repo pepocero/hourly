@@ -41,6 +41,33 @@ class PDFService {
     this.doc.line(20, 72, 190, 72);
   }
 
+  addContratosHeader(title, subtitle, fechaInicio, fechaFin) {
+    if (!this.doc) this.createDocument();
+
+    this.doc.setFontSize(16);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text(title, 20, 30);
+
+    this.doc.setFontSize(12);
+    this.doc.setFont('helvetica', 'normal');
+    const subtitleLines = String(subtitle || '').split('\n');
+    let y = 42;
+    subtitleLines.forEach((line) => {
+      this.doc.text(line, 20, y);
+      y += 6;
+    });
+
+    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'italic');
+    this.doc.text(`Período: ${formatFechaEU(fechaInicio)} - ${formatFechaEU(fechaFin)}`, 20, y + 4);
+
+    const lineY = y + 10;
+    this.doc.setDrawColor(200, 200, 200);
+    this.doc.line(20, lineY, 190, lineY);
+
+    this.headerEndY = lineY + 8;
+  }
+
   drawMetricCards(yStart, metrics) {
     const startX = 20;
     const totalWidth = 170;
@@ -197,7 +224,7 @@ class PDFService {
       { label: 'Importe Extras', value: `€${resumen.totalGanancias.toFixed(2)}`, color: [34, 197, 94] }
     ];
 
-    this.summaryEndY = this.drawMetricCards(82, metrics);
+    this.summaryEndY = this.drawMetricCards(this.headerEndY || 82, metrics);
   }
 
   addContratosTable(subtotalesPorContrato) {
@@ -335,7 +362,7 @@ class PDFService {
 
   generateContratosPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorContrato, resumen) {
     this.createDocument();
-    this.addHeader(title, subtitle, fechaInicio, fechaFin);
+    this.addContratosHeader(title, subtitle, fechaInicio, fechaFin);
     this.addContratosSummary(resumen);
     this.addContratosTable(subtotalesPorContrato);
     this.addFooter();
