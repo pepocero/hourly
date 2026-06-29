@@ -273,9 +273,15 @@ class PDFService {
           currentY = 20;
         }
 
+        const esSuelto = isDiaSuelto(horario);
+        if (esSuelto) {
+          this.doc.setFillColor(254, 243, 199);
+          this.doc.rect(20, currentY - 4, 170, 6, 'F');
+        }
+
         xPos = 20;
         const nombreContrato = horario.contrato_nombre || subtotal.nombre || 'Sin contrato';
-        const fechaLabel = isDiaSuelto(horario)
+        const fechaLabel = esSuelto
           ? `${this.formatDate(horario.fecha)} *`
           : this.formatDate(horario.fecha);
         const rowData = [

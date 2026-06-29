@@ -1318,7 +1318,14 @@ function Informes() {
                   <p className="text-xs font-medium text-gray-600 mb-2">Horarios Registrados ({subtotal.registros.length})</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {subtotal.registros.map((horario) => (
-                      <div key={horario.id} className={`flex justify-between items-center py-2 px-3 rounded border text-sm ${isDiaSuelto(horario) ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div
+                        key={horario.id}
+                        className={`flex justify-between items-center py-2 px-3 rounded border text-sm ${
+                          isDiaSuelto(horario)
+                            ? 'bg-amber-100 border-amber-300 border-l-4 border-l-amber-500'
+                            : 'bg-white border-gray-200'
+                        }`}
+                      >
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{formatDate(horario.fecha)}</span>

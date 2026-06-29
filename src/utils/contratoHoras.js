@@ -221,7 +221,8 @@ export function calcularAjusteSemana(liquidacionDefinitiva, liquidacionAnticipad
 }
 
 export function isDiaSuelto(horario) {
-  return horario?.es_dia_suelto === 1 || horario?.es_dia_suelto === true || horario?.esDiaSuelto === true;
+  const valor = horario?.es_dia_suelto ?? horario?.esDiaSuelto;
+  return valor === true || valor === 1 || valor === '1';
 }
 
 export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = null, fechaFin = null) {
