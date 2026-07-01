@@ -347,6 +347,32 @@ class ApiService {
 
     return this.request(`/api/liquidaciones-contrato/ajuste-pendiente?${params.toString()}`);
   }
+
+  async getInformesGuardados(fechaInicio = null, fechaFin = null, contratoId = null) {
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+    if (contratoId) params.append('contrato_id', contratoId);
+    const query = params.toString();
+    return this.request(`/api/informes-guardados${query ? `?${query}` : ''}`);
+  }
+
+  async getInformeGuardado(informeId) {
+    return this.request(`/api/informes-guardados/${informeId}`);
+  }
+
+  async createInformeGuardado(data) {
+    return this.request('/api/informes-guardados', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInformeGuardado(informeId) {
+    return this.request(`/api/informes-guardados/${informeId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default new ApiService();

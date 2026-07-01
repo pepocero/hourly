@@ -1,18 +1,74 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { FileCheck, Trash2, AlertCircle } from 'lucide-react';
+import { FileCheck, Trash2, AlertCircle, Receipt } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
-import { agruparLiquidacionesContrato } from '../utils/contratoHoras';
+import { agruparLiquidacionesContrato, contarSemanasEnPeriodo } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
+import { generarTituloInformeCobro } from '../utils/informeGuardado';
 
-const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, contratos, onDataChange }, ref) => {
+const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, contratos, onDataChange, onInformeCobroGenerado }, ref) => {
   const [liquidaciones, setLiquidaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [anulandoKey, setAnulandoKey] = useState(null);
   const [grupoToAnular, setGrupoToAnular] = useState(null);
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [generandoInformeKey, setGenerandoInformeKey] = useState(null);
+
+  const getPeriodoGrupo = (grupo) => ({
+    inicio: grupo.agrupada ? grupo.periodoInicio : grupo.semanaLunes,
+    fin: grupo.agrupada ? grupo.periodoFin : grupo.semanaFin
+  });
+
+  const handleInformeCobro = async (grupo) => {
+    const { inicio, fin } = getPeriodoGrupo(grupo);
+    const key = grupo.agrupada
+      ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
+      : `${grupo.contratoId}-${grupo.semanaLunes}`;
+    const numSemanas = contarSemanasEnPeriodo(inicio, fin);
+
+    try {
+      setGenerandoInformeKey(key);
+      const response = await apiService.createInformeGuardado({
+        titulo: generarTituloInformeCobro(grupo.contratoNombre, inicio, fin, numSemanas),
+        contrato_id: grupo.contratoId,
+        fecha_inicio: inicio,
+        fecha_fin: fin,
+        num_semanas: numSemanas,
+        liquidacion_agrupada: grupo.agrupada
+      });
+
+      if (response.success) {
+        if (onInformeCobroGenerado) {
+          onInformeCobroGenerado(response.data);
+        } else {
+          setAlertModal({
+            isOpen: true,
+            title: 'Informe de cobro generado',
+            message: 'El informe se ha guardado. Consulta Informes → Informes guardados para exportarlo a PDF.',
+            type: 'success'
+          });
+        }
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'No se pudo generar',
+          message: response.error || 'Error al generar el informe de cobro.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'No se pudo generar el informe de cobro.',
+        type: 'error'
+      });
+    } finally {
+      setGenerandoInformeKey(null);
+    }
+  };
 
   useImperativeHandle(ref, () => ({
     loadLiquidaciones
@@ -147,6 +203,8 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
           const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
             || grupo.registros.find((r) => r.tipo === 'anticipada');
           const horasExtras = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
+          const { inicio, fin } = getPeriodoGrupo(grupo);
+          const numSemanas = contarSemanasEnPeriodo(inicio, fin);
 
           return (
             <div
@@ -174,19 +232,32 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                       : `Semana ${formatFechaEU(grupo.semanaLunes)} – ${formatFechaEU(grupo.semanaFin)}`}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
+                    {numSemanas === 1 ? '1 semana' : `${numSemanas} semanas`}
+                    {' • '}
                     {horasExtras.toFixed(2)}h extras
                     {importeTotal !== 0 && ` • ${formatEuro(importeTotal)}`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleAnularClick(grupo)}
-                  disabled={anulandoKey === key}
-                  className="btn-secondary flex items-center justify-center gap-2 text-sm text-red-700 border-red-200 hover:bg-red-50 w-full sm:w-auto"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>{anulandoKey === key ? 'Anulando...' : (grupo.agrupada ? 'Anular periodo' : 'Anular semana')}</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleInformeCobro(grupo)}
+                    disabled={generandoInformeKey === key}
+                    className="btn-primary flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    <span>{generandoInformeKey === key ? 'Generando...' : 'Informe para cobro'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAnularClick(grupo)}
+                    disabled={anulandoKey === key}
+                    className="btn-secondary flex items-center justify-center gap-2 text-sm text-red-700 border-red-200 hover:bg-red-50 w-full sm:w-auto"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>{anulandoKey === key ? 'Anulando...' : (grupo.agrupada ? 'Anular periodo' : 'Anular semana')}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="divide-y divide-gray-100">

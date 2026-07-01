@@ -25,6 +25,7 @@ function Dashboard() {
   const [fechaFin, setFechaFin] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [informesNav, setInformesNav] = useState(null);
   
   // Referencias para acceder a las funciones de los componentes
   const proyectosListRef = useRef(null);
@@ -323,11 +324,19 @@ function Dashboard() {
         )}
 
         {activeTab === 'contratos' && (
-          <Contratos />
+          <Contratos
+            onNavigateToInformes={(nav) => {
+              setInformesNav(nav);
+              setActiveTab('informes');
+            }}
+          />
         )}
 
         {activeTab === 'informes' && (
-          <Informes />
+          <Informes
+            navState={informesNav}
+            onNavConsumed={() => setInformesNav(null)}
+          />
         )}
       </div>
 

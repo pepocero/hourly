@@ -443,3 +443,123 @@ export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
     return fechaB.localeCompare(fechaA);
   });
 }
+
+export function contarSemanasEnPeriodo(fechaInicio, fechaFin) {
+  if (!fechaInicio || !fechaFin) return 0;
+
+  const semanas = new Set();
+  const inicio = parseDateLocal(fechaInicio);
+  const fin = parseDateLocal(fechaFin);
+  const current = new Date(inicio);
+
+  while (current <= fin) {
+    semanas.add(getMondayOfWeek(formatDateLocal(current)));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return semanas.size;
+}
+
+export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInicio, fechaFin) {
+  const subtotales = {};
+
+  (horariosContrato || []).forEach((horario) => {
+    const contratoId = horario.contrato_id;
+
+    if (!subtotales[contratoId]) {
+      subtotales[contratoId] = {
+        nombre: horario.contrato_nombre,
+        horasSemanales: horario.horas_semanales || 0,
+        valorHoraExtra: horario.valor_hora_extra || 0,
+        diasLaborables: horario.dias_laborables,
+        diaCierreLiquidacion: horario.dia_cierre_liquidacion,
+        totalMinutos: 0,
+        registros: []
+      };
+    }
+
+    subtotales[contratoId].totalMinutos += parseInt(horario.duracion_minutos || 0, 10);
+    subtotales[contratoId].registros.push(horario);
+  });
+
+  Object.keys(subtotales).forEach((contratoId) => {
+    const subtotal = subtotales[contratoId];
+    const resultado = calcularHorasExtrasPorSemanas(
+      subtotal.registros,
+      {
+        horas_semanales: subtotal.horasSemanales,
+        valor_hora_extra: subtotal.valorHoraExtra,
+        dias_laborables: subtotal.diasLaborables,
+        dia_cierre_liquidacion: subtotal.diaCierreLiquidacion
+      },
+      fechaInicio,
+      fechaFin
+    );
+
+    const totalHoras = subtotal.totalMinutos / 60;
+
+    subtotal.totalHoras = totalHoras;
+    subtotal.horasEsperadas = resultado.semanas.reduce((sum, s) => sum + s.horasEsperadas, 0);
+    subtotal.horasExtras = resultado.horasExtras;
+    subtotal.horasExtrasContrato = resultado.horasExtrasContrato;
+    subtotal.horasExtrasDiasSueltos = resultado.horasExtrasDiasSueltos;
+    subtotal.horasNormales = Math.max(0, totalHoras - resultado.horasExtras);
+    subtotal.totalExtras = resultado.importe;
+    subtotal.semanas = resultado.semanas;
+    subtotal.diasSueltos = resultado.diasSueltos;
+  });
+
+  return subtotales;
+}
+
+export function buildInformeContratosSnapshot(horariosContrato, fechaInicio, fechaFin, options = {}) {
+  const subtotalesPorContrato = calcularSubtotalesPorContratoInforme(
+    horariosContrato,
+    fechaInicio,
+    fechaFin
+  );
+
+  const totalGeneralHoras = (horariosContrato || []).reduce(
+    (sum, h) => sum + (parseFloat(h.duracion_minutos || 0) / 60),
+    0
+  );
+  const totalGeneralMinutos = (horariosContrato || []).reduce(
+    (sum, h) => sum + parseInt(h.duracion_minutos || 0, 10),
+    0
+  );
+  const totalHorasExtras = Object.values(subtotalesPorContrato).reduce(
+    (sum, s) => sum + (s.horasExtras || 0),
+    0
+  );
+  const totalGanancias = Object.values(subtotalesPorContrato).reduce(
+    (sum, s) => sum + (s.totalExtras || 0),
+    0
+  );
+
+  const listaContratos = Object.values(subtotalesPorContrato);
+  const contratoNombre = options.contratoNombre
+    || (listaContratos.length === 1 ? listaContratos[0].nombre : null);
+
+  return {
+    version: 1,
+    tipo: 'contratos',
+    tipoInforme: 'detallado',
+    fechaInicio,
+    fechaFin,
+    contratoId: options.contratoId ?? null,
+    contratoNombre,
+    numSemanas: options.numSemanas ?? contarSemanasEnPeriodo(fechaInicio, fechaFin),
+    liquidacionAgrupada: !!options.liquidacionAgrupada,
+    horariosContrato: horariosContrato || [],
+    subtotalesPorContrato,
+    resumen: {
+      totalHoras: totalGeneralHoras,
+      totalHorasExtras,
+      totalGanancias,
+      totalRegistros: (horariosContrato || []).length,
+      promedioMinutos: horariosContrato?.length
+        ? totalGeneralMinutos / horariosContrato.length
+        : 0
+    }
+  };
+}

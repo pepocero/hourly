@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil } from 'lucide-react';
+import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil, Archive, Save, Receipt } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato } from '../utils/contratoHoras';
+import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
+import { generarTituloInformeCobro } from '../utils/informeGuardado';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HorarioContratoForm from './HorarioContratoForm';
+import InformesGuardados from './InformesGuardados';
 
-function Informes() {
+function Informes({ navState = null, onNavConsumed }) {
+  const [seccionPrincipal, setSeccionPrincipal] = useState('generar');
+  const [informeGuardadoInicial, setInformeGuardadoInicial] = useState(null);
   const [tipoInforme, setTipoInforme] = useState('detallado');
   const [tipoDatos, setTipoDatos] = useState('proyectos'); // 'proyectos' o 'contratos'
   const [fechaInicio, setFechaInicio] = useState('');
@@ -31,6 +35,27 @@ function Informes() {
   const [diaSueltoEditando, setDiaSueltoEditando] = useState(null);
   const [horarioDiaSueltoToDelete, setHorarioDiaSueltoToDelete] = useState(null);
   const [eliminandoDiaSuelto, setEliminandoDiaSuelto] = useState(false);
+  const [guardandoInforme, setGuardandoInforme] = useState(false);
+  const [generandoInformeCobro, setGenerandoInformeCobro] = useState(null);
+
+  useEffect(() => {
+    if (!navState) return;
+
+    if (navState.seccion === 'guardados') {
+      setSeccionPrincipal('guardados');
+      if (navState.informeId) {
+        setInformeGuardadoInicial(navState.informeId);
+      }
+    } else if (navState.seccion === 'generar') {
+      setSeccionPrincipal('generar');
+      if (navState.tipoDatos) setTipoDatos(navState.tipoDatos);
+      if (navState.fechaInicio) setFechaInicio(navState.fechaInicio);
+      if (navState.fechaFin) setFechaFin(navState.fechaFin);
+      if (navState.contratoId) setContratoFiltro(String(navState.contratoId));
+    }
+
+    if (onNavConsumed) onNavConsumed();
+  }, [navState]);
 
   useEffect(() => {
     loadProyectos();
@@ -534,6 +559,123 @@ function Informes() {
     }
   };
 
+  const getPeriodoLiquidacionGrupo = (grupo) => ({
+    fechaInicio: grupo.agrupada ? grupo.periodoInicio : grupo.semanaLunes,
+    fechaFin: grupo.agrupada ? grupo.periodoFin : grupo.semanaFin
+  });
+
+  const getNumSemanasGrupo = (grupo) => {
+    const { fechaInicio, fechaFin } = getPeriodoLiquidacionGrupo(grupo);
+    return contarSemanasEnPeriodo(fechaInicio, fechaFin);
+  };
+
+  const handleGuardarInformeContratos = async () => {
+    if (!fechaInicio || !fechaFin || horariosContrato.length === 0) return;
+
+    try {
+      setGuardandoInforme(true);
+      const contratoRef = contratoFiltro
+        ? contratos.find((c) => c.id === parseInt(contratoFiltro, 10))
+        : null;
+      const numSemanas = contarSemanasEnPeriodo(fechaInicio, fechaFin);
+      const snapshot = buildInformeContratosSnapshot(horariosContrato, fechaInicio, fechaFin, {
+        contratoId: contratoRef?.id || null,
+        contratoNombre: contratoRef?.nombre || null,
+        numSemanas,
+        liquidacionAgrupada: numSemanas > 1
+      });
+      const titulo = generarTituloInformeCobro(
+        contratoRef?.nombre || Object.values(subtotalesPorContrato)[0]?.nombre || 'Contrato',
+        fechaInicio,
+        fechaFin,
+        numSemanas
+      );
+
+      const response = await apiService.createInformeGuardado({
+        titulo,
+        contrato_id: contratoRef?.id || null,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        num_semanas: numSemanas,
+        liquidacion_agrupada: numSemanas > 1,
+        datos_json: JSON.stringify(snapshot)
+      });
+
+      if (response.success) {
+        setAlertModal({
+          isOpen: true,
+          title: 'Informe guardado',
+          message: 'El informe se ha guardado correctamente. Puedes consultarlo en la sección Informes guardados.',
+          type: 'success'
+        });
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'No se pudo guardar',
+          message: response.error || 'Error al guardar el informe.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'No se pudo guardar el informe. Inténtalo de nuevo.',
+        type: 'error'
+      });
+    } finally {
+      setGuardandoInforme(false);
+    }
+  };
+
+  const handleGenerarInformeCobroLiquidacion = async (grupo) => {
+    const { fechaInicio: inicio, fechaFin: fin } = getPeriodoLiquidacionGrupo(grupo);
+    const grupoKey = grupo.agrupada
+      ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
+      : `${grupo.contratoId}-${grupo.semanaLunes}`;
+
+    try {
+      setGenerandoInformeCobro(grupoKey);
+      const numSemanas = getNumSemanasGrupo(grupo);
+      const titulo = generarTituloInformeCobro(grupo.contratoNombre, inicio, fin, numSemanas);
+      const response = await apiService.createInformeGuardado({
+        titulo,
+        contrato_id: grupo.contratoId,
+        fecha_inicio: inicio,
+        fecha_fin: fin,
+        num_semanas: numSemanas,
+        liquidacion_agrupada: grupo.agrupada
+      });
+
+      if (response.success) {
+        setSeccionPrincipal('guardados');
+        setInformeGuardadoInicial(response.data?.id || null);
+        setAlertModal({
+          isOpen: true,
+          title: 'Informe de cobro generado',
+          message: 'El informe detallado del periodo liquidado se ha guardado. Puedes exportarlo a PDF desde aquí.',
+          type: 'success'
+        });
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'No se pudo generar',
+          message: response.error || 'Error al generar el informe de cobro.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'No se pudo generar el informe de cobro.',
+        type: 'error'
+      });
+    } finally {
+      setGenerandoInformeCobro(null);
+    }
+  };
+
   const contratosParaDiaSuelto = contratoFiltro
     ? contratos.filter((c) => c.id === parseInt(contratoFiltro, 10))
     : contratos;
@@ -544,11 +686,11 @@ function Informes() {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
         <div>
           <h2 className="text-base sm:text-lg font-semibold text-gray-900">Informes</h2>
-          <p className="text-sm text-gray-600">Genera reportes detallados de tus horas trabajadas</p>
+          <p className="text-sm text-gray-600">Genera reportes detallados y consulta informes guardados para cobro</p>
         </div>
         
         <div className="flex space-x-2 sm:space-x-3">
-          {tipoDatos === 'proyectos' && (
+          {seccionPrincipal === 'generar' && tipoDatos === 'proyectos' && (
             <button
               onClick={handleExportarCSVClick}
               className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
@@ -561,7 +703,50 @@ function Informes() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Sección principal: Generar / Guardados */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setSeccionPrincipal('generar')}
+          className={`p-4 rounded-lg border-2 text-left transition-colors ${
+            seccionPrincipal === 'generar'
+              ? 'border-primary-500 bg-primary-50 text-primary-700'
+              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <div className="flex items-center space-x-2 mb-1">
+            <FileText className="h-5 w-5" />
+            <span className="text-sm font-semibold">Generar informe</span>
+          </div>
+          <p className="text-xs text-gray-500">Crea informes por proyectos, contratos o liquidaciones</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setSeccionPrincipal('guardados')}
+          className={`p-4 rounded-lg border-2 text-left transition-colors ${
+            seccionPrincipal === 'guardados'
+              ? 'border-purple-500 bg-purple-50 text-purple-700'
+              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <div className="flex items-center space-x-2 mb-1">
+            <Archive className="h-5 w-5" />
+            <span className="text-sm font-semibold">Informes guardados</span>
+          </div>
+          <p className="text-xs text-gray-500">Consulta y exporta informes de cobro guardados</p>
+        </button>
+      </div>
+
+      {seccionPrincipal === 'guardados' && (
+        <InformesGuardados
+          contratos={contratos}
+          informeIdInicial={informeGuardadoInicial}
+          onInformeInicialConsumido={() => setInformeGuardadoInicial(null)}
+        />
+      )}
+
+      {seccionPrincipal === 'generar' && (
+      <>
       <div className="card">
         <div className="space-y-4">
           {/* Selector de tipo de datos */}
@@ -913,6 +1098,7 @@ function Informes() {
               const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
                 || grupo.registros.find((r) => r.tipo === 'anticipada');
               const horasExtrasGrupo = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
+              const numSemanasGrupo = getNumSemanasGrupo(grupo);
               const grupoKey = grupo.agrupada
                 ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
                 : `${grupo.contratoId}-${grupo.semanaLunes}`;
@@ -942,14 +1128,23 @@ function Informes() {
                           ? `Periodo ${formatDateLong(grupo.periodoInicio)} – ${formatDateLong(grupo.periodoFin)}`
                           : `Semana ${formatDateLong(grupo.semanaLunes)} – ${formatDateLong(grupo.semanaFin)}`}
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {numSemanasGrupo === 1 ? '1 semana' : `${numSemanasGrupo} semanas`}
+                        {' • '}
+                        {horasExtrasGrupo.toFixed(2)}h extras
+                        {importeGrupo !== 0 && ` • ${formatEuro(importeGrupo)}`}
+                      </p>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                      <div className="flex items-center space-x-4 text-sm">
-                        <span className="text-orange-600 font-medium">{horasExtrasGrupo.toFixed(2)}h extras</span>
-                        {importeGrupo !== 0 && (
-                          <span className="text-green-600 font-medium">{formatEuro(importeGrupo)}</span>
-                        )}
-                      </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleGenerarInformeCobroLiquidacion(grupo)}
+                        disabled={generandoInformeCobro === grupoKey}
+                        className="btn-primary flex items-center gap-1 text-xs w-full sm:w-auto justify-center"
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                        {generandoInformeCobro === grupoKey ? 'Generando...' : 'Informe para cobro'}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleAnularLiquidacionClick(grupo)}
@@ -1424,16 +1619,31 @@ function Informes() {
             <div>
               <h3 className="text-base font-semibold text-gray-900">Exportar informe</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Descarga el informe actual ({formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}) en PDF.
+                Descarga el informe actual ({formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}) en PDF
+                {tipoDatos === 'contratos' && contarSemanasEnPeriodo(fechaInicio, fechaFin) > 1
+                  ? ` — cubre ${contarSemanasEnPeriodo(fechaInicio, fechaFin)} semanas`
+                  : ''}.
               </p>
             </div>
-            <button
-              onClick={handleExportarPDFClick}
-              className="btn-primary flex items-center justify-center space-x-2 text-sm px-4 py-2 w-full sm:w-auto"
-            >
-              <FileDown className="h-4 w-4" />
-              <span>Exportar a PDF</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {tipoDatos === 'contratos' && (
+                <button
+                  onClick={handleGuardarInformeContratos}
+                  disabled={guardandoInforme}
+                  className="btn-secondary flex items-center justify-center space-x-2 text-sm px-4 py-2 w-full sm:w-auto"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{guardandoInforme ? 'Guardando...' : 'Guardar informe'}</span>
+                </button>
+              )}
+              <button
+                onClick={handleExportarPDFClick}
+                className="btn-primary flex items-center justify-center space-x-2 text-sm px-4 py-2 w-full sm:w-auto"
+              >
+                <FileDown className="h-4 w-4" />
+                <span>Exportar a PDF</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1514,6 +1724,9 @@ function Informes() {
           </div>
         </div>
       </ConfirmModal>
+
+      </>
+      )}
 
       <AlertModal
         isOpen={alertModal.isOpen}

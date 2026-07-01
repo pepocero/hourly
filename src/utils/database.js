@@ -394,4 +394,74 @@ export class DatabaseService {
     `);
     return await stmt.bind(userId, contratoId, fechaInicio, fechaCierre).run();
   }
+
+  // ========== INFORMES GUARDADOS ==========
+
+  async getInformesGuardados(userId, fechaInicio = null, fechaFin = null, contratoId = null) {
+    let query = `
+      SELECT ig.*, c.nombre as contrato_nombre, c.color as contrato_color
+      FROM informes_guardados ig
+      LEFT JOIN contratos c ON ig.contrato_id = c.id
+      WHERE ig.user_id = ?
+    `;
+    const params = [userId];
+
+    if (contratoId) {
+      query += ` AND ig.contrato_id = ?`;
+      params.push(contratoId);
+    }
+
+    if (fechaInicio && fechaFin) {
+      query += ` AND ig.fecha_inicio <= ? AND ig.fecha_fin >= ?`;
+      params.push(fechaFin, fechaInicio);
+    } else if (fechaInicio) {
+      query += ` AND ig.fecha_fin >= ?`;
+      params.push(fechaInicio);
+    } else if (fechaFin) {
+      query += ` AND ig.fecha_inicio <= ?`;
+      params.push(fechaFin);
+    }
+
+    query += ` ORDER BY ig.created_at DESC`;
+
+    const stmt = this.db.prepare(query);
+    return await stmt.bind(...params).all();
+  }
+
+  async getInformeGuardadoById(userId, informeId) {
+    const stmt = this.db.prepare(`
+      SELECT ig.*, c.nombre as contrato_nombre, c.color as contrato_color
+      FROM informes_guardados ig
+      LEFT JOIN contratos c ON ig.contrato_id = c.id
+      WHERE ig.id = ? AND ig.user_id = ?
+    `);
+    return await stmt.bind(informeId, userId).first();
+  }
+
+  async createInformeGuardado(userId, data) {
+    const stmt = this.db.prepare(`
+      INSERT INTO informes_guardados (
+        user_id, titulo, tipo, contrato_id, fecha_inicio, fecha_fin,
+        num_semanas, liquidacion_agrupada, datos_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return await stmt.bind(
+      userId,
+      data.titulo,
+      data.tipo || 'contratos',
+      data.contrato_id || null,
+      data.fecha_inicio,
+      data.fecha_fin,
+      data.num_semanas || 1,
+      data.liquidacion_agrupada ? 1 : 0,
+      data.datos_json
+    ).run();
+  }
+
+  async deleteInformeGuardado(userId, informeId) {
+    const stmt = this.db.prepare(`
+      DELETE FROM informes_guardados WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(informeId, userId).run();
+  }
 }

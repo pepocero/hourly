@@ -4,7 +4,9 @@ import { CryptoAuthService } from './utils/cryptoAuth.js';
 import {
   calcularHorasExtrasPorSemanas,
   calcularAjusteSemana,
-  calcularLiquidacionSemana
+  calcularLiquidacionSemana,
+  buildInformeContratosSnapshot,
+  contarSemanasEnPeriodo
 } from './utils/contratoHoras.js';
 
 export default {
@@ -1777,6 +1779,232 @@ export default {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
+        }
+      }
+
+      // ========== INFORMES GUARDADOS ==========
+      if (url.pathname.startsWith('/api/informes-guardados')) {
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        const informeId = pathParts.length === 3 ? parseInt(pathParts[2], 10) : null;
+
+        if (request.method === 'GET' && !informeId) {
+          try {
+            const fechaInicio = url.searchParams.get('fecha_inicio');
+            const fechaFin = url.searchParams.get('fecha_fin');
+            const contratoId = url.searchParams.get('contrato_id');
+
+            const result = await db.getInformesGuardados(
+              authResult.userId,
+              fechaInicio,
+              fechaFin,
+              contratoId ? parseInt(contratoId, 10) : null
+            );
+
+            return new Response(JSON.stringify({
+              success: true,
+              data: result.results || [],
+              message: 'Informes guardados obtenidos'
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          } catch (error) {
+            console.error('Error en /api/informes-guardados (GET):', error);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Error interno del servidor',
+              details: error.message
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+        }
+
+        if (request.method === 'GET' && informeId) {
+          try {
+            const informe = await db.getInformeGuardadoById(authResult.userId, informeId);
+            if (!informe) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'Informe no encontrado'
+              }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            return new Response(JSON.stringify({
+              success: true,
+              data: informe,
+              message: 'Informe guardado obtenido'
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          } catch (error) {
+            console.error('Error en /api/informes-guardados/:id (GET):', error);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Error interno del servidor',
+              details: error.message
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/informes-guardados') {
+          try {
+            const body = await request.json();
+            const {
+              titulo,
+              tipo,
+              contrato_id,
+              fecha_inicio,
+              fecha_fin,
+              num_semanas,
+              liquidacion_agrupada,
+              datos_json
+            } = body;
+
+            if (!fecha_inicio || !fecha_fin) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'fecha_inicio y fecha_fin son requeridos'
+              }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            let snapshotJson = datos_json;
+            let contratoNombre = null;
+
+            if (!snapshotJson) {
+              if (!contrato_id) {
+                return new Response(JSON.stringify({
+                  success: false,
+                  error: 'contrato_id es requerido si no se envía datos_json'
+                }), {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+              }
+
+              const contrato = await db.getContratoById(parseInt(contrato_id, 10), authResult.userId);
+              if (!contrato) {
+                return new Response(JSON.stringify({
+                  success: false,
+                  error: 'Contrato no encontrado'
+                }), {
+                  status: 404,
+                  headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+              }
+
+              contratoNombre = contrato.nombre;
+              const horariosResult = await db.getHorariosContrato(
+                authResult.userId,
+                parseInt(contrato_id, 10),
+                fecha_inicio,
+                fecha_fin,
+                true
+              );
+              const horarios = horariosResult.results || [];
+              const numSemanas = num_semanas || contarSemanasEnPeriodo(fecha_inicio, fecha_fin);
+              const snapshot = buildInformeContratosSnapshot(horarios, fecha_inicio, fecha_fin, {
+                contratoId: parseInt(contrato_id, 10),
+                contratoNombre,
+                numSemanas,
+                liquidacionAgrupada: !!liquidacion_agrupada
+              });
+              snapshotJson = JSON.stringify(snapshot);
+            }
+
+            const parsedSnapshot = typeof snapshotJson === 'string'
+              ? JSON.parse(snapshotJson)
+              : snapshotJson;
+            const numSemanasFinal = num_semanas
+              || parsedSnapshot?.numSemanas
+              || contarSemanasEnPeriodo(fecha_inicio, fecha_fin);
+            const nombreContrato = contratoNombre
+              || parsedSnapshot?.contratoNombre
+              || (contrato_id ? (await db.getContratoById(parseInt(contrato_id, 10), authResult.userId))?.nombre : null)
+              || 'Contrato';
+            const tituloFinal = titulo || `Informe cobro - ${nombreContrato} (${fecha_inicio} – ${fecha_fin})`;
+
+            const insertResult = await db.createInformeGuardado(authResult.userId, {
+              titulo: tituloFinal,
+              tipo: tipo || parsedSnapshot?.tipo || 'contratos',
+              contrato_id: contrato_id ? parseInt(contrato_id, 10) : parsedSnapshot?.contratoId || null,
+              fecha_inicio,
+              fecha_fin,
+              num_semanas: numSemanasFinal,
+              liquidacion_agrupada: !!liquidacion_agrupada,
+              datos_json: typeof snapshotJson === 'string' ? snapshotJson : JSON.stringify(snapshotJson)
+            });
+
+            const nuevoInforme = await db.getInformeGuardadoById(
+              authResult.userId,
+              insertResult.meta.last_row_id
+            );
+
+            return new Response(JSON.stringify({
+              success: true,
+              data: nuevoInforme,
+              message: 'Informe guardado correctamente'
+            }), {
+              status: 201,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          } catch (error) {
+            console.error('Error en /api/informes-guardados (POST):', error);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Error interno del servidor',
+              details: error.message
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+        }
+
+        if (request.method === 'DELETE' && informeId) {
+          try {
+            const existente = await db.getInformeGuardadoById(authResult.userId, informeId);
+            if (!existente) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'Informe no encontrado'
+              }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            await db.deleteInformeGuardado(authResult.userId, informeId);
+
+            return new Response(JSON.stringify({
+              success: true,
+              message: 'Informe eliminado correctamente'
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          } catch (error) {
+            console.error('Error en /api/informes-guardados/:id (DELETE):', error);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Error interno del servidor',
+              details: error.message
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
         }
       }
 

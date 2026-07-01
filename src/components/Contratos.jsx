@@ -9,7 +9,7 @@ import LiquidacionesContratoList from './LiquidacionesContratoList';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 
-function Contratos() {
+function Contratos({ onNavigateToInformes }) {
   const [contratos, setContratos] = useState([]);
   const [contratoSeleccionado, setContratoSeleccionado] = useState(null);
   const [contratoFiltro, setContratoFiltro] = useState('all'); // 'all' o id de contrato
@@ -288,6 +288,14 @@ function Contratos() {
               fechaInicio={fechaInicioFiltro || null}
               fechaFin={fechaFinFiltro || null}
               contratos={contratos}
+              onInformeCobroGenerado={(informe) => {
+                if (onNavigateToInformes) {
+                  onNavigateToInformes({
+                    seccion: 'guardados',
+                    informeId: informe?.id
+                  });
+                }
+              }}
               onDataChange={() => {
                 if (horariosListRef.current) {
                   horariosListRef.current.loadLiquidaciones();
