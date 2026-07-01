@@ -738,17 +738,19 @@ function Informes({ navState = null, onNavConsumed }) {
         <button
           type="button"
           onClick={() => setSeccionPrincipal('guardados')}
-          className={`p-4 rounded-lg border-2 text-left transition-colors ${
+          className={`p-4 rounded-lg border-2 text-left transition-all duration-200 ${
             seccionPrincipal === 'guardados'
-              ? 'border-purple-500 bg-purple-50 text-purple-700'
-              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+              ? 'border-emerald-600 bg-white text-emerald-800 shadow-md ring-2 ring-emerald-200/60'
+              : 'border-emerald-300 bg-emerald-100 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-100/90 shadow-sm'
           }`}
         >
           <div className="flex items-center space-x-2 mb-1">
-            <Archive className="h-5 w-5" />
+            <Archive className={`h-5 w-5 ${seccionPrincipal === 'guardados' ? 'text-emerald-600' : 'text-emerald-700'}`} />
             <span className="text-sm font-semibold">Informes guardados</span>
           </div>
-          <p className="text-xs text-gray-500">Consulta y exporta informes de cobro guardados</p>
+          <p className={`text-xs ${seccionPrincipal === 'guardados' ? 'text-emerald-600/90' : 'text-emerald-800/90'}`}>
+            Consulta y exporta informes de cobro guardados
+          </p>
         </button>
       </div>
 

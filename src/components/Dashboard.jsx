@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Clock, Euro, Calendar, Download, Filter, FileText, Briefcase } from 'lucide-react';
+import { Plus, Clock, Calendar, FileText, Briefcase, Filter } from 'lucide-react';
 import apiService from '../services/api';
 import HorasList from './HorasList';
 import HorasForm from './HorasForm';
@@ -126,169 +126,146 @@ function Dashboard() {
   };
 
   const tabs = [
-    { id: 'horas', label: 'Horas Trabajadas', icon: Clock },
-    { id: 'proyectos', label: 'Proyectos', icon: Calendar },
-    { id: 'contratos', label: 'Contratos', icon: Briefcase },
-    { id: 'informes', label: 'Informes', icon: FileText },
+    {
+      id: 'horas',
+      label: 'Horas Trabajadas',
+      shortLabel: 'Horas',
+      icon: Clock,
+      activeClass: 'bg-blue-600 text-white shadow-lg shadow-blue-200/80 ring-2 ring-blue-400/30',
+      inactiveClass: 'bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 hover:border-blue-300',
+      iconClass: 'text-blue-600',
+      accentClass: 'text-blue-700',
+      btnClass: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
+      panelClass: 'border-blue-300 bg-blue-100/70 shadow-sm shadow-blue-100',
+      filterClass: 'border-blue-200 bg-blue-50/90'
+    },
+    {
+      id: 'proyectos',
+      label: 'Proyectos',
+      shortLabel: 'Proyectos',
+      icon: Calendar,
+      activeClass: 'bg-emerald-600 text-white shadow-lg shadow-emerald-200/80 ring-2 ring-emerald-400/30',
+      inactiveClass: 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
+      iconClass: 'text-emerald-600',
+      accentClass: 'text-emerald-700',
+      btnClass: 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500',
+      panelClass: 'border-emerald-300 bg-emerald-100/70 shadow-sm shadow-emerald-100',
+      filterClass: 'border-emerald-200 bg-emerald-50/90'
+    },
+    {
+      id: 'contratos',
+      label: 'Contratos',
+      shortLabel: 'Contratos',
+      icon: Briefcase,
+      activeClass: 'bg-orange-600 text-white shadow-lg shadow-orange-200/80 ring-2 ring-orange-400/30',
+      inactiveClass: 'bg-orange-50 text-orange-800 border border-orange-200 hover:bg-orange-100 hover:border-orange-300',
+      iconClass: 'text-orange-600',
+      accentClass: 'text-orange-700',
+      btnClass: 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500',
+      panelClass: 'border-orange-300 bg-orange-100/70 shadow-sm shadow-orange-100',
+      filterClass: 'border-orange-200 bg-orange-50/90'
+    },
+    {
+      id: 'informes',
+      label: 'Informes',
+      shortLabel: 'Informes',
+      icon: FileText,
+      activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-200/80 ring-2 ring-amber-400/30',
+      inactiveClass: 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 hover:border-amber-300',
+      iconClass: 'text-amber-600',
+      accentClass: 'text-amber-800',
+      btnClass: 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-500',
+      panelClass: 'border-amber-300 bg-amber-100/70 shadow-sm shadow-amber-100',
+      filterClass: 'border-amber-200 bg-amber-50/90'
+    }
   ];
 
+  const activeTabConfig = tabs.find((tab) => tab.id === activeTab) || tabs[0];
+
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-600">Gestiona tus horas de trabajo y proyectos</p>
-        </div>
-        
-        <div className="flex space-x-2 sm:space-x-3">
-          <button
-            onClick={handleExportarCSVClick}
-            className="btn-secondary flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2"
-          >
-            <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Exportar CSV</span>
-            <span className="sm:hidden">CSV</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Resumen de horas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
-              <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-blue-600" />
-            </div>
-            <div className="ml-2 sm:ml-3 lg:ml-4">
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Total Horas</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                {loading ? '...' : (resumen?.totalHoras || 0).toFixed(1)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
-              <Euro className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
-            </div>
-            <div className="ml-2 sm:ml-3 lg:ml-4">
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Total Ganancias</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                {loading ? '...' : formatEuro(resumen?.totalGanancias || 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
-              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-purple-600" />
-            </div>
-            <div className="ml-2 sm:ml-3 lg:ml-4">
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Registros</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                {loading ? '...' : resumen?.totalRegistros || 0}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
-              <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-orange-600" />
-            </div>
-            <div className="ml-2 sm:ml-3 lg:ml-4">
-              <p className="text-xs sm:text-sm font-medium text-gray-600">Promedio/Día</p>
-              <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
-                {loading ? '...' : (resumen?.promedioMinutos || 0).toFixed(0)}m
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filtros de fecha */}
-      <div className="card">
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-          <div className="flex items-center space-x-2">
-            <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filtros:</span>
-          </div>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-            <div className="flex-1">
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                Fecha inicio
-              </label>
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-                className="input-field w-full"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                Fecha fin
-              </label>
-              <input
-                type="date"
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
-                className="input-field w-full"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-4 sm:space-x-8">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-1 sm:space-x-2 py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${
-                  activeTab === tab.id
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">
-                  {tab.id === 'horas' ? 'Horas' : tab.id === 'proyectos' ? 'Proyectos' : tab.id === 'contratos' ? 'Contratos' : 'Informes'}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+    <div className="space-y-4 sm:space-y-5">
+      {/* Navegación principal */}
+      <nav className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center justify-center sm:justify-start gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-3 sm:py-3.5 font-semibold text-sm transition-all duration-200 ${
+                isActive ? tab.activeClass : tab.inactiveClass
+              }`}
+            >
+              <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : tab.iconClass}`} />
+              <span className="hidden sm:inline truncate">{tab.label}</span>
+              <span className="sm:hidden truncate">{tab.shortLabel}</span>
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Content */}
-      <div className="space-y-4 sm:space-y-6">
+      <div
+        className={`space-y-4 sm:space-y-6 rounded-xl border-2 p-3 sm:p-4 lg:p-5 transition-colors ${activeTabConfig.panelClass}`}
+      >
         {activeTab === 'horas' && (
           <>
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Horas Trabajadas</h2>
+              <h2 className={`text-base sm:text-lg font-semibold ${activeTabConfig.accentClass}`}>
+                Horas Trabajadas
+              </h2>
               <button
                 onClick={() => {
                   setEditingHora(null);
                   setShowHorasForm(true);
                 }}
-                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5"
+                className={`${activeTabConfig.btnClass} text-white flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2`}
               >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Nueva Hora</span>
               </button>
             </div>
+
+            <div className={`rounded-lg border p-3 sm:p-4 ${activeTabConfig.filterClass}`}>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
+                <div className="flex items-center gap-2 sm:pb-2">
+                  <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Periodo</span>
+                </div>
+                <div className="flex flex-1 flex-col sm:flex-row gap-3 sm:gap-4">
+                  <div className="flex-1">
+                    <label className="block text-xs sm:text-sm font-medium text-blue-900/80 mb-1">
+                      Fecha inicio
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaInicio}
+                      onChange={(e) => setFechaInicio(e.target.value)}
+                      className="input-field w-full bg-white"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs sm:text-sm font-medium text-blue-900/80 mb-1">
+                      Fecha fin
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaFin}
+                      onChange={(e) => setFechaFin(e.target.value)}
+                      className="input-field w-full bg-white"
+                    />
+                  </div>
+                </div>
+                {fechaInicio && fechaFin && (
+                  <p className="text-xs sm:text-sm text-blue-800/90 sm:pb-2 sm:max-w-[12rem] sm:text-right">
+                    {formatDate(fechaInicio)} – {formatDate(fechaFin)}
+                  </p>
+                )}
+              </div>
+            </div>
+
             <HorasList 
               ref={horasListRef}
               fechaInicio={fechaInicio}
@@ -302,13 +279,15 @@ function Dashboard() {
         {activeTab === 'proyectos' && (
           <>
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Proyectos</h2>
+              <h2 className={`text-base sm:text-lg font-semibold ${activeTabConfig.accentClass}`}>
+                Proyectos
+              </h2>
               <button
                 onClick={() => {
                   setEditingProyecto(null);
                   setShowProyectoForm(true);
                 }}
-                className="btn-primary flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5"
+                className={`${activeTabConfig.btnClass} text-white flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2`}
               >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Nuevo Proyecto</span>
