@@ -54,9 +54,22 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
       );
       if (response.success) {
         setInformes(response.data || []);
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al cargar',
+          message: response.error || 'No se pudieron cargar los informes guardados.',
+          type: 'error'
+        });
       }
     } catch (error) {
       console.error('Error cargando informes guardados:', error);
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al cargar',
+        message: 'No se pudieron cargar los informes guardados.',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -149,6 +162,17 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
     ? parseInformeGuardadoDatos(informeSeleccionado)
     : null;
 
+  if (informeSeleccionado && !datosDetalle) {
+    return (
+      <div className="card text-center py-10">
+        <p className="text-red-600 mb-4">No se pudo leer el contenido de este informe guardado.</p>
+        <button type="button" onClick={() => setInformeSeleccionado(null)} className="btn-secondary">
+          Volver a la lista
+        </button>
+      </div>
+    );
+  }
+
   if (informeSeleccionado && datosDetalle) {
     const subtotales = Object.values(datosDetalle.subtotalesPorContrato || {});
     const resumen = datosDetalle.resumen || {};
@@ -230,6 +254,30 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
           {subtotales.map((subtotal) => (
             <div key={subtotal.nombre} className="mb-6 last:mb-0">
               <h4 className="text-sm font-semibold text-gray-900 mb-2">{subtotal.nombre}</h4>
+              {(subtotal.dias || []).length > 0 && (
+                <div className="mb-3 overflow-x-auto">
+                  <table className="min-w-full text-xs divide-y divide-gray-100 mb-2">
+                    <thead>
+                      <tr className="text-gray-500">
+                        <th className="text-left py-1 pr-2">Día</th>
+                        <th className="text-right py-1 px-2">Trab.</th>
+                        <th className="text-right py-1 px-2">Contrato</th>
+                        <th className="text-right py-1 pl-2">Extras</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subtotal.dias.map((dia) => (
+                        <tr key={dia.fecha}>
+                          <td className="py-1 pr-2">{formatFechaEU(dia.fecha)}</td>
+                          <td className="text-right py-1 px-2">{dia.horasTrabajadas.toFixed(2)}h</td>
+                          <td className="text-right py-1 px-2">{dia.horasContrato.toFixed(2)}h</td>
+                          <td className="text-right py-1 pl-2 text-orange-600">{dia.horasExtras.toFixed(2)}h</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">

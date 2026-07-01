@@ -269,6 +269,29 @@ class PDFService {
     let tieneDiasSueltos = false;
 
     Object.entries(subtotalesPorContrato).forEach(([, subtotal]) => {
+      if (subtotal.dias?.length > 0) {
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.setFontSize(9);
+        this.doc.text(`Resumen diario — ${subtotal.nombre}`, 20, currentY);
+        currentY += 6;
+
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setFontSize(7);
+        subtotal.dias.forEach((dia) => {
+          if (currentY > 250) {
+            this.doc.addPage();
+            currentY = 20;
+          }
+          this.doc.text(
+            `${this.formatDate(dia.fecha)}: ${dia.horasTrabajadas.toFixed(2)}h trab. | ${dia.horasContrato.toFixed(2)}h contrato | ${dia.horasExtras.toFixed(2)}h extras`,
+            22,
+            currentY
+          );
+          currentY += 5;
+        });
+        currentY += 4;
+      }
+
       subtotal.registros.forEach((horario) => {
         if (isDiaSuelto(horario)) {
           tieneDiasSueltos = true;

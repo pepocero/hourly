@@ -3,9 +3,9 @@ import { FileCheck, Trash2, AlertCircle, Receipt } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
-import { agruparLiquidacionesContrato, contarSemanasEnPeriodo } from '../utils/contratoHoras';
+import { agruparLiquidacionesContrato, contarDiasEnPeriodo, buildInformeContratosSnapshot } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
-import { generarTituloInformeCobro } from '../utils/informeGuardado';
+import { generarTituloInformeCobro, exportarSnapshotContratosPDF } from '../utils/informeGuardado';
 
 const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, contratos, onDataChange, onInformeCobroGenerado }, ref) => {
   const [liquidaciones, setLiquidaciones] = useState([]);
@@ -14,59 +14,83 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
   const [grupoToAnular, setGrupoToAnular] = useState(null);
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
-  const [generandoInformeKey, setGenerandoInformeKey] = useState(null);
+  const [grupoInformeModal, setGrupoInformeModal] = useState(null);
+  const [procesandoInforme, setProcesandoInforme] = useState(false);
 
   const getPeriodoGrupo = (grupo) => ({
-    inicio: grupo.agrupada ? grupo.periodoInicio : grupo.semanaLunes,
-    fin: grupo.agrupada ? grupo.periodoFin : grupo.semanaFin
+    inicio: grupo.periodoInicio,
+    fin: grupo.periodoFin
   });
 
-  const handleInformeCobro = async (grupo) => {
-    const { inicio, fin } = getPeriodoGrupo(grupo);
-    const key = grupo.agrupada
-      ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
-      : `${grupo.contratoId}-${grupo.semanaLunes}`;
-    const numSemanas = contarSemanasEnPeriodo(inicio, fin);
+  const handleInformeCobroClick = (grupo) => {
+    setGrupoInformeModal(grupo);
+  };
+
+  const handleInformeSoloPDF = async () => {
+    if (!grupoInformeModal) return;
+    const { inicio, fin } = getPeriodoGrupo(grupoInformeModal);
 
     try {
-      setGenerandoInformeKey(key);
+      setProcesandoInforme(true);
+      const horariosRes = await apiService.getHorariosContrato(grupoInformeModal.contratoId, inicio, fin, true);
+      const horarios = horariosRes.data || [];
+      if (horarios.length === 0) {
+        setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
+        return;
+      }
+      const snapshot = buildInformeContratosSnapshot(horarios, inicio, fin, {
+        contratoId: grupoInformeModal.contratoId,
+        contratoNombre: grupoInformeModal.contratoNombre
+      });
+      await exportarSnapshotContratosPDF(snapshot);
+      setGrupoInformeModal(null);
+    } catch (error) {
+      setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo generar el PDF.', type: 'error' });
+    } finally {
+      setProcesandoInforme(false);
+    }
+  };
+
+  const handleInformeGuardar = async () => {
+    if (!grupoInformeModal) return;
+    const { inicio, fin } = getPeriodoGrupo(grupoInformeModal);
+    const numDias = contarDiasEnPeriodo(inicio, fin);
+
+    try {
+      setProcesandoInforme(true);
       const response = await apiService.createInformeGuardado({
-        titulo: generarTituloInformeCobro(grupo.contratoNombre, inicio, fin, numSemanas),
-        contrato_id: grupo.contratoId,
+        titulo: generarTituloInformeCobro(grupoInformeModal.contratoNombre, inicio, fin, numDias),
+        contrato_id: grupoInformeModal.contratoId,
         fecha_inicio: inicio,
         fecha_fin: fin,
-        num_semanas: numSemanas,
-        liquidacion_agrupada: grupo.agrupada
+        num_semanas: numDias,
+        liquidacion_agrupada: true
       });
 
       if (response.success) {
+        setGrupoInformeModal(null);
         if (onInformeCobroGenerado) {
           onInformeCobroGenerado(response.data);
         } else {
           setAlertModal({
             isOpen: true,
-            title: 'Informe de cobro generado',
-            message: 'El informe se ha guardado. Consulta Informes → Informes guardados para exportarlo a PDF.',
-            type: 'success'
+            title: 'Informe guardado',
+            message: 'El informe se ha guardado. Puedes consultarlo en Informes → Informes guardados.',
+            type: 'info'
           });
         }
       } else {
         setAlertModal({
           isOpen: true,
-          title: 'No se pudo generar',
-          message: response.error || 'Error al generar el informe de cobro.',
+          title: 'No se pudo guardar',
+          message: response.error || 'Error al guardar el informe.',
           type: 'error'
         });
       }
     } catch (error) {
-      setAlertModal({
-        isOpen: true,
-        title: 'Error',
-        message: 'No se pudo generar el informe de cobro.',
-        type: 'error'
-      });
+      setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo guardar el informe.', type: 'error' });
     } finally {
-      setGenerandoInformeKey(null);
+      setProcesandoInforme(false);
     }
   };
 
@@ -119,23 +143,16 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
 
   const handleAnularConfirm = async () => {
     if (!grupoToAnular) return;
-    const key = grupoToAnular.agrupada
-      ? `agrupada-${grupoToAnular.contratoId}-${grupoToAnular.periodoInicio}-${grupoToAnular.periodoFin}`
-      : `${grupoToAnular.contratoId}-${grupoToAnular.semanaLunes}`;
+    const key = `${grupoToAnular.contratoId}-${grupoToAnular.periodoInicio}-${grupoToAnular.periodoFin}`;
     setAnulandoKey(key);
     setShowAnularModal(false);
 
     try {
-      const response = grupoToAnular.agrupada
-        ? await apiService.anularLiquidacionPeriodoAgrupado(
-            grupoToAnular.contratoId,
-            grupoToAnular.periodoInicio,
-            grupoToAnular.periodoFin
-          )
-        : await apiService.anularLiquidacionesSemana(
-            grupoToAnular.contratoId,
-            grupoToAnular.semanaLunes
-          );
+      const response = await apiService.anularLiquidacionPeriodoAgrupado(
+        grupoToAnular.contratoId,
+        grupoToAnular.periodoInicio,
+        grupoToAnular.periodoFin
+      );
       if (response.success) {
         await loadLiquidaciones();
         if (onDataChange) onDataChange();
@@ -189,22 +206,17 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
       <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
         <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-900">
-          Puedes anular una liquidación registrada por error. Las agrupadas se anulan por periodo;
-          las semanales eliminan todos los registros de esa semana (anticipada, definitiva y ajuste).
+          Cada liquidación cubre un periodo de fechas. Puedes anularla si se registró por error.
         </p>
       </div>
 
       <div className="space-y-3">
         {grupos.map((grupo) => {
-          const key = grupo.agrupada
-            ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
-            : `${grupo.contratoId}-${grupo.semanaLunes}`;
-          const importeTotal = grupo.registros.reduce((sum, r) => sum + parseFloat(r.importe || 0), 0);
-          const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
-            || grupo.registros.find((r) => r.tipo === 'anticipada');
+          const key = `${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`;
+          const refLiq = grupo.registros[0];
+          const importeTotal = parseFloat(refLiq?.importe || 0);
           const horasExtras = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
-          const { inicio, fin } = getPeriodoGrupo(grupo);
-          const numSemanas = contarSemanasEnPeriodo(inicio, fin);
+          const numDias = grupo.numDias || contarDiasEnPeriodo(grupo.periodoInicio, grupo.periodoFin);
 
           return (
             <div
@@ -220,19 +232,12 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                       style={{ backgroundColor: grupo.contratoColor }}
                     />
                     <span className="font-medium text-gray-900">{grupo.contratoNombre}</span>
-                    {grupo.agrupada && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                        Agrupada
-                      </span>
-                    )}
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    {grupo.agrupada
-                      ? `Periodo ${formatFechaEU(grupo.periodoInicio)} – ${formatFechaEU(grupo.periodoFin)}`
-                      : `Semana ${formatFechaEU(grupo.semanaLunes)} – ${formatFechaEU(grupo.semanaFin)}`}
+                    Periodo {formatFechaEU(grupo.periodoInicio)} – {formatFechaEU(grupo.periodoFin)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {numSemanas === 1 ? '1 semana' : `${numSemanas} semanas`}
+                    {numDias} día{numDias !== 1 ? 's' : ''}
                     {' • '}
                     {horasExtras.toFixed(2)}h extras
                     {importeTotal !== 0 && ` • ${formatEuro(importeTotal)}`}
@@ -241,12 +246,11 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   <button
                     type="button"
-                    onClick={() => handleInformeCobro(grupo)}
-                    disabled={generandoInformeKey === key}
+                    onClick={() => handleInformeCobroClick(grupo)}
                     className="btn-primary flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
                   >
                     <Receipt className="h-4 w-4" />
-                    <span>{generandoInformeKey === key ? 'Generando...' : 'Informe para cobro'}</span>
+                    <span>Informe para cobro</span>
                   </button>
                   <button
                     type="button"
@@ -255,47 +259,62 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                     className="btn-secondary flex items-center justify-center gap-2 text-sm text-red-700 border-red-200 hover:bg-red-50 w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4" />
-                    <span>{anulandoKey === key ? 'Anulando...' : (grupo.agrupada ? 'Anular periodo' : 'Anular semana')}</span>
+                    <span>{anulandoKey === key ? 'Anulando...' : 'Anular periodo'}</span>
                   </button>
                 </div>
               </div>
 
-              <div className="divide-y divide-gray-100">
-                {grupo.registros.map((liq) => (
-                  <div key={liq.id} className="px-3 sm:px-4 py-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div className="flex items-center space-x-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border capitalize ${getTipoStyle(liq.tipo)}`}>
-                          {liq.tipo}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          Registrada: {formatFechaRegistro(liq.created_at)}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-4 text-sm">
-                        <span className="text-gray-600">
-                          {parseFloat(liq.horas_trabajadas).toFixed(2)}h trab. / {parseFloat(liq.horas_esperadas).toFixed(2)}h esp.
-                        </span>
-                        <span className="font-medium text-orange-600">
-                          {parseFloat(liq.horas_extras).toFixed(2)}h extras
-                        </span>
-                        {parseFloat(liq.importe) !== 0 && (
-                          <span className={`font-medium ${parseFloat(liq.importe) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatEuro(liq.importe)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {liq.notas && (
-                      <p className="text-xs text-gray-500 mt-2">{liq.notas}</p>
-                    )}
-                  </div>
-                ))}
+              <div className="px-3 sm:px-4 py-2 text-xs text-gray-500 border-t border-gray-100">
+                Registrada: {formatFechaRegistro(refLiq?.created_at)}
+                {' • '}
+                {parseFloat(refLiq?.horas_trabajadas || 0).toFixed(2)}h trab.
+                {' / '}
+                {parseFloat(refLiq?.horas_esperadas || 0).toFixed(2)}h contrato
               </div>
             </div>
           );
         })}
       </div>
+
+      {grupoInformeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Informe para cobro</h3>
+            <p className="text-sm text-gray-600">
+              Periodo {formatFechaEU(grupoInformeModal.periodoInicio)} – {formatFechaEU(grupoInformeModal.periodoFin)}
+            </p>
+            <p className="text-xs text-gray-500">
+              Puedes guardar el informe para consultarlo después o exportar solo el PDF sin guardarlo.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleInformeGuardar}
+                disabled={procesandoInforme}
+                className="btn-primary w-full"
+              >
+                {procesandoInforme ? 'Procesando...' : 'Guardar informe'}
+              </button>
+              <button
+                type="button"
+                onClick={handleInformeSoloPDF}
+                disabled={procesandoInforme}
+                className="btn-secondary w-full"
+              >
+                Solo exportar PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setGrupoInformeModal(null)}
+                disabled={procesandoInforme}
+                className="btn-secondary w-full text-gray-600"
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={showAnularModal}
@@ -304,11 +323,11 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
           setGrupoToAnular(null);
         }}
         onConfirm={handleAnularConfirm}
-        title="Anular liquidación de la semana"
+        title="Anular liquidación del periodo"
         message={
-          grupoToAnular?.agrupada
-            ? `¿Anular la liquidación agrupada del ${grupoToAnular ? formatFechaEU(grupoToAnular.periodoInicio) : ''} al ${grupoToAnular ? formatFechaEU(grupoToAnular.periodoFin) : ''}? Se eliminarán todos los registros de ese periodo.`
-            : `¿Anular la liquidación de la semana del ${grupoToAnular ? formatFechaEU(grupoToAnular.semanaLunes) : ''}? Se eliminarán todos los registros de esa semana y podrás volver a registrarla.`
+          grupoToAnular
+            ? `¿Anular la liquidación del ${formatFechaEU(grupoToAnular.periodoInicio)} al ${formatFechaEU(grupoToAnular.periodoFin)}? Los días quedarán libres para volver a liquidar.`
+            : ''
         }
         confirmText="Anular liquidación"
         cancelText="Cancelar"

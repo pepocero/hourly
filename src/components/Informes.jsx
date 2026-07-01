@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil, Archive, Save, Receipt } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo } from '../utils/contratoHoras';
+import { calcularHorasExtrasPeriodo, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo, contarDiasEnPeriodo } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
-import { generarTituloInformeCobro } from '../utils/informeGuardado';
+import { generarTituloInformeCobro, exportarSnapshotContratosPDF } from '../utils/informeGuardado';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HorarioContratoForm from './HorarioContratoForm';
@@ -37,6 +37,8 @@ function Informes({ navState = null, onNavConsumed }) {
   const [eliminandoDiaSuelto, setEliminandoDiaSuelto] = useState(false);
   const [guardandoInforme, setGuardandoInforme] = useState(false);
   const [generandoInformeCobro, setGenerandoInformeCobro] = useState(null);
+  const [grupoInformeCobroModal, setGrupoInformeCobroModal] = useState(null);
+  const [procesandoInformeCobro, setProcesandoInformeCobro] = useState(false);
 
   useEffect(() => {
     if (!navState) return;
@@ -208,9 +210,9 @@ function Informes({ navState = null, onNavConsumed }) {
         subtotales[contratoId] = {
           nombre: contratoNombre,
           horasSemanales: horario.horas_semanales || 0,
+          horasPorDia: horario.horas_por_dia || 0,
           valorHoraExtra: horario.valor_hora_extra || 0,
           diasLaborables: horario.dias_laborables,
-          diaCierreLiquidacion: horario.dia_cierre_liquidacion,
           totalMinutos: 0,
           registros: []
         };
@@ -222,13 +224,13 @@ function Informes({ navState = null, onNavConsumed }) {
 
     Object.keys(subtotales).forEach(contratoId => {
       const subtotal = subtotales[contratoId];
-      const resultado = calcularHorasExtrasPorSemanas(
+      const resultado = calcularHorasExtrasPeriodo(
         subtotal.registros,
         {
           horas_semanales: subtotal.horasSemanales,
+          horas_por_dia: subtotal.horasPorDia,
           valor_hora_extra: subtotal.valorHoraExtra,
-          dias_laborables: subtotal.diasLaborables,
-          dia_cierre_liquidacion: subtotal.diaCierreLiquidacion
+          dias_laborables: subtotal.diasLaborables
         },
         fechaInicio,
         fechaFin
@@ -237,13 +239,12 @@ function Informes({ navState = null, onNavConsumed }) {
       const totalHoras = subtotal.totalMinutos / 60;
 
       subtotal.totalHoras = totalHoras;
-      subtotal.horasEsperadas = resultado.semanas.reduce((sum, s) => sum + s.horasEsperadas, 0);
       subtotal.horasExtras = resultado.horasExtras;
       subtotal.horasExtrasContrato = resultado.horasExtrasContrato;
       subtotal.horasExtrasDiasSueltos = resultado.horasExtrasDiasSueltos;
-      subtotal.horasNormales = Math.max(0, totalHoras - resultado.horasExtras);
+      subtotal.horasNormales = resultado.horasNormales;
       subtotal.totalExtras = resultado.importe;
-      subtotal.semanas = resultado.semanas;
+      subtotal.dias = resultado.dias;
       subtotal.diasSueltos = resultado.diasSueltos;
     });
     
@@ -491,16 +492,11 @@ function Informes({ navState = null, onNavConsumed }) {
     setAnulandoLiquidacion(true);
 
     try {
-      const response = grupoLiquidacionToAnular.agrupada
-        ? await apiService.anularLiquidacionPeriodoAgrupado(
-            grupoLiquidacionToAnular.contratoId,
-            grupoLiquidacionToAnular.periodoInicio,
-            grupoLiquidacionToAnular.periodoFin
-          )
-        : await apiService.anularLiquidacionesSemana(
-            grupoLiquidacionToAnular.contratoId,
-            grupoLiquidacionToAnular.semanaLunes
-          );
+      const response = await apiService.anularLiquidacionPeriodoAgrupado(
+        grupoLiquidacionToAnular.contratoId,
+        grupoLiquidacionToAnular.periodoInicio,
+        grupoLiquidacionToAnular.periodoFin
+      );
       if (response.success) {
         await loadDatos();
       } else {
@@ -560,14 +556,11 @@ function Informes({ navState = null, onNavConsumed }) {
   };
 
   const getPeriodoLiquidacionGrupo = (grupo) => ({
-    fechaInicio: grupo.agrupada ? grupo.periodoInicio : grupo.semanaLunes,
-    fechaFin: grupo.agrupada ? grupo.periodoFin : grupo.semanaFin
+    fechaInicio: grupo.periodoInicio,
+    fechaFin: grupo.periodoFin
   });
 
-  const getNumSemanasGrupo = (grupo) => {
-    const { fechaInicio, fechaFin } = getPeriodoLiquidacionGrupo(grupo);
-    return contarSemanasEnPeriodo(fechaInicio, fechaFin);
-  };
+  const getNumDiasGrupo = (grupo) => contarDiasEnPeriodo(grupo.periodoInicio, grupo.periodoFin);
 
   const handleGuardarInformeContratos = async () => {
     if (!fechaInicio || !fechaFin || horariosContrato.length === 0) return;
@@ -628,51 +621,73 @@ function Informes({ navState = null, onNavConsumed }) {
     }
   };
 
-  const handleGenerarInformeCobroLiquidacion = async (grupo) => {
-    const { fechaInicio: inicio, fechaFin: fin } = getPeriodoLiquidacionGrupo(grupo);
-    const grupoKey = grupo.agrupada
-      ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
-      : `${grupo.contratoId}-${grupo.semanaLunes}`;
+  const handleGenerarInformeCobroLiquidacion = (grupo) => {
+    setGrupoInformeCobroModal(grupo);
+  };
+
+  const handleInformeCobroSoloPDF = async () => {
+    if (!grupoInformeCobroModal) return;
+    const { fechaInicio: inicio, fechaFin: fin } = getPeriodoLiquidacionGrupo(grupoInformeCobroModal);
 
     try {
-      setGenerandoInformeCobro(grupoKey);
-      const numSemanas = getNumSemanasGrupo(grupo);
-      const titulo = generarTituloInformeCobro(grupo.contratoNombre, inicio, fin, numSemanas);
+      setProcesandoInformeCobro(true);
+      const horariosRes = await apiService.getHorariosContrato(grupoInformeCobroModal.contratoId, inicio, fin, true);
+      const horarios = horariosRes.data || [];
+      if (horarios.length === 0) {
+        setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
+        return;
+      }
+      const snapshot = buildInformeContratosSnapshot(horarios, inicio, fin, {
+        contratoId: grupoInformeCobroModal.contratoId,
+        contratoNombre: grupoInformeCobroModal.contratoNombre
+      });
+      await exportarSnapshotContratosPDF(snapshot);
+      setGrupoInformeCobroModal(null);
+    } catch (error) {
+      setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo generar el PDF.', type: 'error' });
+    } finally {
+      setProcesandoInformeCobro(false);
+    }
+  };
+
+  const handleInformeCobroGuardar = async () => {
+    if (!grupoInformeCobroModal) return;
+    const { fechaInicio: inicio, fechaFin: fin } = getPeriodoLiquidacionGrupo(grupoInformeCobroModal);
+    const numDias = getNumDiasGrupo(grupoInformeCobroModal);
+
+    try {
+      setProcesandoInformeCobro(true);
       const response = await apiService.createInformeGuardado({
-        titulo,
-        contrato_id: grupo.contratoId,
+        titulo: generarTituloInformeCobro(grupoInformeCobroModal.contratoNombre, inicio, fin, numDias),
+        contrato_id: grupoInformeCobroModal.contratoId,
         fecha_inicio: inicio,
         fecha_fin: fin,
-        num_semanas: numSemanas,
-        liquidacion_agrupada: grupo.agrupada
+        num_semanas: numDias,
+        liquidacion_agrupada: true
       });
 
       if (response.success) {
         setSeccionPrincipal('guardados');
         setInformeGuardadoInicial(response.data?.id || null);
+        setGrupoInformeCobroModal(null);
         setAlertModal({
           isOpen: true,
-          title: 'Informe de cobro generado',
-          message: 'El informe detallado del periodo liquidado se ha guardado. Puedes exportarlo a PDF desde aquí.',
-          type: 'success'
+          title: 'Informe guardado',
+          message: 'El informe se ha guardado en Informes guardados.',
+          type: 'info'
         });
       } else {
         setAlertModal({
           isOpen: true,
-          title: 'No se pudo generar',
-          message: response.error || 'Error al generar el informe de cobro.',
+          title: 'No se pudo guardar',
+          message: response.error || 'Error al guardar el informe.',
           type: 'error'
         });
       }
     } catch (error) {
-      setAlertModal({
-        isOpen: true,
-        title: 'Error',
-        message: 'No se pudo generar el informe de cobro.',
-        type: 'error'
-      });
+      setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo guardar el informe.', type: 'error' });
     } finally {
-      setGenerandoInformeCobro(null);
+      setProcesandoInformeCobro(false);
     }
   };
 
@@ -1098,10 +1113,8 @@ function Informes({ navState = null, onNavConsumed }) {
               const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
                 || grupo.registros.find((r) => r.tipo === 'anticipada');
               const horasExtrasGrupo = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
-              const numSemanasGrupo = getNumSemanasGrupo(grupo);
-              const grupoKey = grupo.agrupada
-                ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
-                : `${grupo.contratoId}-${grupo.semanaLunes}`;
+              const numDiasGrupo = getNumDiasGrupo(grupo);
+              const grupoKey = `${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`;
 
               return (
                 <div
@@ -1129,7 +1142,7 @@ function Informes({ navState = null, onNavConsumed }) {
                           : `Semana ${formatDateLong(grupo.semanaLunes)} – ${formatDateLong(grupo.semanaFin)}`}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {numSemanasGrupo === 1 ? '1 semana' : `${numSemanasGrupo} semanas`}
+                        {numDiasGrupo} día{numDiasGrupo !== 1 ? 's' : ''}
                         {' • '}
                         {horasExtrasGrupo.toFixed(2)}h extras
                         {importeGrupo !== 0 && ` • ${formatEuro(importeGrupo)}`}
@@ -1139,11 +1152,10 @@ function Informes({ navState = null, onNavConsumed }) {
                       <button
                         type="button"
                         onClick={() => handleGenerarInformeCobroLiquidacion(grupo)}
-                        disabled={generandoInformeCobro === grupoKey}
                         className="btn-primary flex items-center gap-1 text-xs w-full sm:w-auto justify-center"
                       >
                         <Receipt className="h-3.5 w-3.5" />
-                        {generandoInformeCobro === grupoKey ? 'Generando...' : 'Informe para cobro'}
+                        Informe para cobro
                       </button>
                       <button
                         type="button"
@@ -1726,6 +1738,28 @@ function Informes({ navState = null, onNavConsumed }) {
       </ConfirmModal>
 
       </>
+      )}
+
+      {grupoInformeCobroModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Informe para cobro</h3>
+            <p className="text-sm text-gray-600">
+              Periodo {formatDate(grupoInformeCobroModal.periodoInicio)} – {formatDate(grupoInformeCobroModal.periodoFin)}
+            </p>
+            <div className="flex flex-col gap-2">
+              <button type="button" onClick={handleInformeCobroGuardar} disabled={procesandoInformeCobro} className="btn-primary w-full">
+                {procesandoInformeCobro ? 'Procesando...' : 'Guardar informe'}
+              </button>
+              <button type="button" onClick={handleInformeCobroSoloPDF} disabled={procesandoInformeCobro} className="btn-secondary w-full">
+                Solo exportar PDF
+              </button>
+              <button type="button" onClick={() => setGrupoInformeCobroModal(null)} disabled={procesandoInformeCobro} className="btn-secondary w-full text-gray-600">
+                Descartar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <AlertModal

@@ -171,21 +171,21 @@ export class DatabaseService {
     return await stmt.bind(contratoId, userId).first();
   }
 
-  async createContrato(userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables = 31, diaCierreLiquidacion = null) {
+  async createContrato(userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables = 31, horasPorDia = null) {
     const stmt = this.db.prepare(`
-      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra, color, dias_laborables, dia_cierre_liquidacion)
+      INSERT INTO contratos (user_id, nombre, horas_semanales, valor_hora_extra, color, dias_laborables, horas_por_dia)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables, diaCierreLiquidacion).run();
+    return await stmt.bind(userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables, horasPorDia).run();
   }
 
-  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables = 31, diaCierreLiquidacion = null) {
+  async updateContrato(contratoId, userId, nombre, horasSemanales, valorHoraExtra, color, diasLaborables = 31, horasPorDia = null) {
     const stmt = this.db.prepare(`
       UPDATE contratos 
-      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, color = ?, dias_laborables = ?, dia_cierre_liquidacion = ?, updated_at = CURRENT_TIMESTAMP
+      SET nombre = ?, horas_semanales = ?, valor_hora_extra = ?, color = ?, dias_laborables = ?, horas_por_dia = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `);
-    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, color, diasLaborables, diaCierreLiquidacion, contratoId, userId).run();
+    return await stmt.bind(nombre, horasSemanales, valorHoraExtra, color, diasLaborables, horasPorDia, contratoId, userId).run();
   }
 
   async deleteContrato(contratoId, userId) {
@@ -201,7 +201,7 @@ export class DatabaseService {
   
   async getHorariosContrato(userId, contratoId = null, fechaInicio = null, fechaFin = null, paraInforme = false) {
     let query = `
-      SELECT hc.*, c.nombre as contrato_nombre, c.horas_semanales, c.valor_hora_extra, c.dias_laborables, c.dia_cierre_liquidacion
+      SELECT hc.*, c.nombre as contrato_nombre, c.horas_semanales, c.horas_por_dia, c.valor_hora_extra, c.dias_laborables
       FROM horarios_contrato hc
       LEFT JOIN contratos c ON hc.contrato_id = c.id
       WHERE hc.user_id = ?
@@ -318,11 +318,11 @@ export class DatabaseService {
     }
 
     if (fechaInicio && fechaFin) {
-      query += ` AND l.semana_lunes <= ? AND date(l.semana_lunes, '+6 days') >= ?`;
+      query += ` AND l.fecha_inicio <= ? AND l.fecha_cierre >= ?`;
       params.push(fechaFin, fechaInicio);
     }
 
-    query += ` ORDER BY l.semana_lunes DESC, l.contrato_id ASC, l.created_at DESC`;
+    query += ` ORDER BY l.fecha_inicio DESC, l.contrato_id ASC, l.created_at DESC`;
 
     const stmt = this.db.prepare(query);
     return await stmt.bind(...params).all();
@@ -336,11 +336,10 @@ export class DatabaseService {
     return await stmt.bind(userId, contratoId, semanaLunes, tipo).first();
   }
 
-  async getLiquidacionAgrupadaSolapada(userId, contratoId, fechaInicio, fechaFin) {
+  async getLiquidacionPeriodoSolapado(userId, contratoId, fechaInicio, fechaFin) {
     const stmt = this.db.prepare(`
       SELECT * FROM liquidaciones_contrato
-      WHERE user_id = ? AND contrato_id = ? AND liquidacion_agrupada = 1
-        AND tipo IN ('anticipada', 'definitiva')
+      WHERE user_id = ? AND contrato_id = ? AND tipo != 'ajuste'
         AND fecha_inicio <= ? AND fecha_cierre >= ?
       LIMIT 1
     `);
@@ -389,7 +388,7 @@ export class DatabaseService {
   async deleteLiquidacionesPeriodoAgrupado(userId, contratoId, fechaInicio, fechaCierre) {
     const stmt = this.db.prepare(`
       DELETE FROM liquidaciones_contrato
-      WHERE user_id = ? AND contrato_id = ? AND liquidacion_agrupada = 1
+      WHERE user_id = ? AND contrato_id = ? AND tipo != 'ajuste'
         AND fecha_inicio = ? AND fecha_cierre = ?
     `);
     return await stmt.bind(userId, contratoId, fechaInicio, fechaCierre).run();

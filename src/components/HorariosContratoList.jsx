@@ -6,10 +6,9 @@ import AlertModal from './AlertModal';
 import {
   calcularResumenHorasExtrasMultiples,
   formatDiasLaborables,
-  getMondayOfWeek,
-  getSundayOfWeek,
-  isLiquidacionAgrupada,
-  agruparLiquidacionesContrato
+  agruparLiquidacionesContrato,
+  encontrarDiasYaLiquidados,
+  contarDiasEnPeriodo
 } from '../utils/contratoHoras';
 import { formatFechaEUCorta, formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 
@@ -22,7 +21,6 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   const [liquidacionMsg, setLiquidacionMsg] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
-  const [agruparSemanasEnLiquidacion, setAgruparSemanasEnLiquidacion] = useState(false);
   const [horarioToDelete, setHorarioToDelete] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
@@ -78,37 +76,15 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
 
   const loadLiquidaciones = async () => {
     try {
-      if (fechaInicio && fechaFin) {
-        const response = await apiService.getLiquidacionesContrato(
-          contratoId || null,
-          null,
-          fechaInicio,
-          fechaFin
-        );
-        if (response.success) {
-          setLiquidaciones(response.data || []);
-        }
-        return;
+      const response = await apiService.getLiquidacionesContrato(
+        contratoId || null,
+        null,
+        fechaInicio || null,
+        fechaFin || null
+      );
+      if (response.success) {
+        setLiquidaciones(response.data || []);
       }
-
-      const semanas = [...new Set(horarios.map((h) => getMondayOfWeek(h.fecha)))];
-      const allLiquidaciones = [];
-
-      for (const semana of semanas) {
-        const response = await apiService.getLiquidacionesContrato(contratoId || null, semana);
-        if (response.success && response.data) {
-          allLiquidaciones.push(...response.data);
-        }
-      }
-
-      if (semanas.length === 0 && contratoId) {
-        const response = await apiService.getLiquidacionesContrato(contratoId, null);
-        if (response.success && response.data) {
-          allLiquidaciones.push(...response.data);
-        }
-      }
-
-      setLiquidaciones(allLiquidaciones);
     } catch (error) {
       console.error('Error cargando liquidaciones:', error);
     }
@@ -133,6 +109,21 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       return;
     }
 
+    const diasSolapados = encontrarDiasYaLiquidados(
+      liquidaciones,
+      parseInt(contratoId, 10),
+      fechaInicio,
+      fechaFin
+    );
+    if (diasSolapados.length > 0) {
+      showAlert(
+        'Días ya liquidados',
+        `Hay ${diasSolapados.length} día(s) del periodo que ya fueron liquidados. Ajusta el rango de fechas.`,
+        'warning'
+      );
+      return;
+    }
+
     setShowLiquidacionModal(true);
   };
 
@@ -145,17 +136,11 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       const response = await apiService.createLiquidacionContrato({
         contrato_id: parseInt(contratoId),
         fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-        agrupar_semanas: agruparSemanasEnLiquidacion
+        fecha_fin: fechaFin
       });
 
       if (response.success) {
-        setLiquidacionMsg(
-          agruparSemanasEnLiquidacion
-            ? 'Liquidación agrupada registrada correctamente'
-            : 'Liquidación registrada correctamente'
-        );
-        setAgruparSemanasEnLiquidacion(false);
+        setLiquidacionMsg('Liquidación del periodo registrada correctamente');
         await loadLiquidaciones();
         if (onDataChange) onDataChange();
       } else {
@@ -222,39 +207,13 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   }, [horarios, fechaInicio, fechaFin, contratosMap]);
 
   const resumenHorasExtras = calcularHorasExtras;
-  const esAnticipada = resumenHorasExtras?.detallesPorContrato?.some(
-    (d) => d.tipoLiquidacion === 'anticipada' || d.semanas?.some((s) => !s.esDefinitiva)
-  );
-  const esDefinitiva = resumenHorasExtras?.detallesPorContrato?.some(
-    (d) => d.tipoLiquidacion === 'definitiva' || d.semanas?.every((s) => s.esDefinitiva)
-  );
-  const esMixta = esAnticipada && esDefinitiva;
-
-  const semanasEnPeriodo = useMemo(() => {
-    if (!resumenHorasExtras?.detallesPorContrato?.length) return 0;
-    const semanas = new Set();
-    resumenHorasExtras.detallesPorContrato.forEach((detalle) => {
-      (detalle.semanas || []).forEach((s) => semanas.add(s.semanaLunes));
-    });
-    return semanas.size;
-  }, [resumenHorasExtras]);
+  const numDiasPeriodo = fechaInicio && fechaFin ? contarDiasEnPeriodo(fechaInicio, fechaFin) : 0;
+  const detalleContrato = resumenHorasExtras?.detallesPorContrato?.[0];
 
   const liquidacionesAgrupadas = useMemo(
     () => agruparLiquidacionesContrato(liquidaciones, contratos || []),
     [liquidaciones, contratos]
   );
-
-  const getLiquidacionConfirmType = () => {
-    if (esMixta) return 'warning';
-    if (esAnticipada) return 'warning';
-    return 'info';
-  };
-
-  const getLiquidacionTipoLabel = () => {
-    if (esMixta) return 'Mixta (anticipada y definitiva)';
-    if (esAnticipada && !esDefinitiva) return 'Anticipada (provisional)';
-    return 'Definitiva';
-  };
 
   if (loading) {
     return (
@@ -474,9 +433,9 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                       {resumenHorasExtras.detallesPorContrato[0].contratoNombre}
                     </p>
                     <p className="text-xs text-gray-600">
-                      Contrato: {resumenHorasExtras.detallesPorContrato[0].horasSemanales}h semanales ({formatDiasLaborables(resumenHorasExtras.detallesPorContrato[0].diasLaborables)})
-                      {resumenHorasExtras.detallesPorContrato[0].valorHoraExtra > 0 && (
-                        <span> • Valor hora extra: {formatEuroPorHora(resumenHorasExtras.detallesPorContrato[0].valorHoraExtra)}</span>
+                      Contrato: {detalleContrato.horasSemanales}h semanales • {detalleContrato.horasPorDia}h/día ({formatDiasLaborables(detalleContrato.diasLaborables)})
+                      {detalleContrato.valorHoraExtra > 0 && (
+                        <span> • Valor hora extra: {formatEuroPorHora(detalleContrato.valorHoraExtra)}</span>
                       )}
                     </p>
                   </div>
@@ -524,11 +483,27 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                 
                 <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                   <p className="text-xs text-gray-600">
-                    Periodo: {formatDate(fechaInicio)} - {formatDate(fechaFin)}
+                    Periodo: {formatDate(fechaInicio)} – {formatDate(fechaFin)} ({numDiasPeriodo} día{numDiasPeriodo !== 1 ? 's' : ''})
                   </p>
                   <p className="text-xs text-gray-500">
-                    Las horas extras se calculan semana por semana según los días laborables y el día de cierre del contrato
+                    Las horas extras se calculan por día: en días laborables, lo que supera las horas de contrato del día; en otros días, todo es extra.
                   </p>
+
+                  {detalleContrato?.dias?.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-2 border border-gray-200 max-h-40 overflow-y-auto">
+                      <p className="text-xs font-medium text-gray-700 mb-1">Desglose por día</p>
+                      {detalleContrato.dias.map((dia) => (
+                        <div key={dia.fecha} className="flex justify-between text-xs text-gray-600 py-0.5">
+                          <span>{formatFechaEU(dia.fecha)}</span>
+                          <span>
+                            {dia.horasTrabajadas.toFixed(2)}h trab.
+                            {' • '}
+                            <span className="text-orange-600">{dia.horasExtras.toFixed(2)}h extras</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {contratoId && (
                     <button
@@ -551,32 +526,21 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                       <p className="text-xs font-medium text-gray-700 mb-2">Liquidaciones registradas:</p>
                       <div className="space-y-2">
                         {liquidacionesAgrupadas.map((grupo) => {
-                          const importeTotal = grupo.registros.reduce(
-                            (sum, r) => sum + parseFloat(r.importe || 0),
-                            0
-                          );
-                          const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
-                            || grupo.registros.find((r) => r.tipo === 'anticipada');
-                          const grupoKey = grupo.agrupada
-                            ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
-                            : `${grupo.contratoId}-${grupo.semanaLunes}`;
+                          const refLiq = grupo.registros[0];
+                          const importeTotal = parseFloat(refLiq?.importe || 0);
+                          const grupoKey = `${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`;
 
                           return (
                             <div key={grupoKey} className="bg-gray-50 rounded p-2 border border-gray-200 text-xs">
                               <div className="flex justify-between items-center gap-2">
-                                <span className={`font-medium capitalize ${
-                                  refLiq?.tipo === 'anticipada' ? 'text-amber-700' :
-                                  refLiq?.tipo === 'ajuste' ? 'text-purple-700' : 'text-green-700'
-                                }`}>
-                                  {grupo.agrupada ? 'Agrupada' : refLiq?.tipo}
-                                </span>
+                                <span className="font-medium text-green-700">Periodo liquidado</span>
                                 <span className="text-gray-500 text-right">
-                                  {grupo.agrupada
-                                    ? `${formatFechaEU(grupo.periodoInicio)} – ${formatFechaEU(grupo.periodoFin)}`
-                                    : `Sem. ${formatFechaEU(grupo.semanaLunes)} – ${formatFechaEU(grupo.semanaFin)}`}
+                                  {formatFechaEU(grupo.periodoInicio)} – {formatFechaEU(grupo.periodoFin)}
                                 </span>
                               </div>
                               <p className="text-gray-600 mt-1">
+                                {grupo.numDias} día{grupo.numDias !== 1 ? 's' : ''}
+                                {' • '}
                                 {refLiq ? `${parseFloat(refLiq.horas_extras).toFixed(2)}h extras` : ''}
                                 {importeTotal !== 0 && ` • ${formatEuro(importeTotal)}`}
                               </p>
@@ -615,49 +579,20 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       {showLiquidacionModal && resumenHorasExtras && (
         <ConfirmModal
           isOpen={showLiquidacionModal}
-          onClose={() => {
-            setShowLiquidacionModal(false);
-            setAgruparSemanasEnLiquidacion(false);
-          }}
+          onClose={() => setShowLiquidacionModal(false)}
           onConfirm={handleRegistrarLiquidacionConfirm}
-          title="Confirmar liquidación"
-          message={
-            agruparSemanasEnLiquidacion
-              ? 'Se registrará una sola liquidación que agrupa todas las semanas del periodo seleccionado.'
-              : 'Se registrará una liquidación por cada semana del periodo. Revisa el resumen antes de confirmar.'
-          }
+          title="Confirmar liquidación del periodo"
+          message="Se registrará una liquidación por el rango de fechas seleccionado. Los días ya liquidados no pueden repetirse."
           confirmText="Registrar liquidación"
           cancelText="Cancelar"
-          type={getLiquidacionConfirmType()}
+          type="info"
         >
           <div className="space-y-3 text-sm">
-            {semanasEnPeriodo > 1 && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
-                <p className="text-xs font-medium text-blue-900">
-                  Este periodo incluye {semanasEnPeriodo} semanas.
-                </p>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={agruparSemanasEnLiquidacion}
-                    onChange={(e) => setAgruparSemanasEnLiquidacion(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 text-primary-600 border-gray-300 rounded"
-                  />
-                  <span className="text-xs text-blue-900">
-                    <span className="font-medium">Unir semanas en una sola liquidación</span>
-                    <span className="block text-blue-800 mt-1">
-                      Si no la marcas, se creará una liquidación independiente por cada semana (comportamiento actual).
-                    </span>
-                  </span>
-                </label>
-              </div>
-            )}
-
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-600">Periodo</span>
                 <span className="font-medium text-gray-900">
-                  {formatDate(fechaInicio)} – {formatDate(fechaFin)}
+                  {formatDate(fechaInicio)} – {formatDate(fechaFin)} ({numDiasPeriodo} días)
                 </span>
               </div>
               <div className="flex justify-between">
@@ -674,33 +609,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                   </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tipo</span>
-                <span className={`font-medium ${
-                  esAnticipada && !esDefinitiva ? 'text-amber-700' :
-                  esMixta ? 'text-amber-700' : 'text-green-700'
-                }`}>
-                  {getLiquidacionTipoLabel()}
-                </span>
-              </div>
             </div>
-
-            {(esAnticipada || esMixta) && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
-                <p className="font-medium">Atención: liquidación provisional</p>
-                <p className="mt-1">
-                  {esMixta
-                    ? 'Algunas semanas del periodo aún no han cerrado. Se registrarán como anticipadas y, al cerrar cada semana, se calculará el ajuste correspondiente.'
-                    : 'La semana aún no ha cerrado según el día de cierre del contrato. Las horas extras son provisionales y podrían cambiar al cerrar la semana.'}
-                </p>
-              </div>
-            )}
-
-            {esDefinitiva && !esMixta && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-900 text-xs">
-                El periodo incluye el cierre semanal del contrato. La liquidación se registrará como definitiva.
-              </div>
-            )}
           </div>
         </ConfirmModal>
       )}

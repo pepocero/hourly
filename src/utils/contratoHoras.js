@@ -44,6 +44,27 @@ export function contarDiasLaborablesConfig(bitmask) {
   return parseDiasLaborables(bitmask).length;
 }
 
+export function validarHorasContrato(horasSemanales, horasPorDia, diasLaborables) {
+  const numDias = contarDiasLaborablesConfig(diasLaborables);
+  if (numDias === 0) {
+    return { valido: false, error: 'Debes seleccionar al menos un día laborable' };
+  }
+  if (!horasSemanales || horasSemanales <= 0) {
+    return { valido: false, error: 'Las horas semanales deben ser mayores que 0' };
+  }
+  if (!horasPorDia || horasPorDia <= 0) {
+    return { valido: false, error: 'Las horas por día deben ser mayores que 0' };
+  }
+  const esperado = horasPorDia * numDias;
+  if (Math.abs(esperado - horasSemanales) > 0.01) {
+    return {
+      valido: false,
+      error: `${horasPorDia}h/día × ${numDias} días = ${esperado.toFixed(1)}h, pero las horas semanales son ${horasSemanales}h`
+    };
+  }
+  return { valido: true };
+}
+
 export function getDiaCierreEfectivo(diasLaborables, diaCierreLiquidacion) {
   if (
     diaCierreLiquidacion !== null &&
@@ -87,20 +108,24 @@ export function isDiaLaborable(dateString, bitmask) {
 }
 
 export function contarDiasLaborablesEnRango(fechaInicio, fechaFin, bitmask) {
-  const mask = bitmask ?? DIAS_LABORABLES_DEFAULT;
+  return obtenerDiasEnRango(fechaInicio, fechaFin).filter((fecha) =>
+    isDiaLaborable(fecha, bitmask)
+  ).length;
+}
+
+export function obtenerDiasEnRango(fechaInicio, fechaFin) {
+  if (!fechaInicio || !fechaFin) return [];
+  const dias = [];
   const inicio = parseDateLocal(fechaInicio);
   const fin = parseDateLocal(fechaFin);
-  let count = 0;
-
   const current = new Date(inicio);
+
   while (current <= fin) {
-    if (mask & jsDayToBitmask(current.getDay())) {
-      count++;
-    }
+    dias.push(formatDateLocal(current));
     current.setDate(current.getDate() + 1);
   }
 
-  return count;
+  return dias;
 }
 
 export function getMondayOfWeek(dateString) {
@@ -118,105 +143,21 @@ export function getSundayOfWeek(mondayString) {
   return formatDateLocal(sunday);
 }
 
-export function esLiquidacionDefinitiva(fechaFin, lunesSemana, contrato) {
-  const diasLaborables = contrato.dias_laborables ?? contrato.diasLaborables ?? DIAS_LABORABLES_DEFAULT;
-  const fechaCierre = getFechaDiaCierreSemana(
-    lunesSemana,
-    diasLaborables,
-    contrato.dia_cierre_liquidacion ?? contrato.diaCierreLiquidacion
-  );
-  return fechaFin >= fechaCierre;
-}
-
-export function calcularHorasEsperadasSemana(horasSemanales, bitmask, lunesSemana, fechaInicio = null, fechaFin = null) {
-  const diasContrato = contarDiasLaborablesConfig(bitmask);
-  if (diasContrato === 0 || !horasSemanales) return 0;
-
-  const domingoSemana = getSundayOfWeek(lunesSemana);
-  const rangoInicio = fechaInicio && fechaInicio > lunesSemana ? fechaInicio : lunesSemana;
-  const rangoFin = fechaFin && fechaFin < domingoSemana ? fechaFin : domingoSemana;
-
-  if (rangoInicio > rangoFin) return 0;
-
-  const diasEnSemana = contarDiasLaborablesEnRango(rangoInicio, rangoFin, bitmask);
-  return horasSemanales * (diasEnSemana / diasContrato);
-}
-
-export function calcularHorasEsperadasSemanaCompleta(horasSemanales, bitmask, lunesSemana) {
-  return calcularHorasEsperadasSemana(
-    horasSemanales,
-    bitmask,
-    lunesSemana,
-    lunesSemana,
-    getSundayOfWeek(lunesSemana)
-  );
-}
-
 function normalizarContrato(contrato) {
+  const diasLaborables = contrato.dias_laborables ?? contrato.diasLaborables ?? DIAS_LABORABLES_DEFAULT;
+  const horasSemanales = contrato.horas_semanales ?? contrato.horasSemanales ?? 0;
+  let horasPorDia = contrato.horas_por_dia ?? contrato.horasPorDia;
+
+  if (!horasPorDia && horasSemanales) {
+    const numDias = contarDiasLaborablesConfig(diasLaborables);
+    horasPorDia = numDias > 0 ? horasSemanales / numDias : 0;
+  }
+
   return {
-    horas_semanales: contrato.horas_semanales ?? contrato.horasSemanales ?? 0,
+    horas_semanales: horasSemanales,
+    horas_por_dia: horasPorDia || 0,
     valor_hora_extra: contrato.valor_hora_extra ?? contrato.valorHoraExtra ?? 0,
-    dias_laborables: contrato.dias_laborables ?? contrato.diasLaborables ?? DIAS_LABORABLES_DEFAULT,
-    dia_cierre_liquidacion: contrato.dia_cierre_liquidacion ?? contrato.diaCierreLiquidacion ?? null
-  };
-}
-
-export function calcularLiquidacionSemana(horariosSemana, contrato, lunesSemana, fechaInicio, fechaFin) {
-  const c = normalizarContrato(contrato);
-  const totalMinutos = horariosSemana.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
-  const horasTrabajadas = totalMinutos / 60;
-  const esDefinitiva = esLiquidacionDefinitiva(fechaFin, lunesSemana, c);
-
-  const horasEsperadas = esDefinitiva
-    ? calcularHorasEsperadasSemanaCompleta(c.horas_semanales, c.dias_laborables, lunesSemana)
-    : calcularHorasEsperadasSemana(c.horas_semanales, c.dias_laborables, lunesSemana, fechaInicio, fechaFin);
-
-  const horasExtras = Math.max(0, horasTrabajadas - horasEsperadas);
-  const fechaCierreSemana = getFechaDiaCierreSemana(lunesSemana, c.dias_laborables, c.dia_cierre_liquidacion);
-  const diaCierreIndex = getDiaCierreEfectivo(c.dias_laborables, c.dia_cierre_liquidacion);
-
-  return {
-    semanaLunes: lunesSemana,
-    horasTrabajadas,
-    horasEsperadas,
-    horasExtras,
-    importe: horasExtras * c.valor_hora_extra,
-    tipo: esDefinitiva ? 'definitiva' : 'anticipada',
-    esDefinitiva,
-    fechaCierreSemana,
-    diaCierreLabel: DIAS_SEMANA_LABELS[diaCierreIndex],
-    diasPendientes: esDefinitiva
-      ? []
-      : (() => {
-          const cierreIndex = getDiaCierreEfectivo(c.dias_laborables, c.dia_cierre_liquidacion);
-          const pending = [];
-          for (let i = 0; i < 7; i++) {
-            const fechaDia = pickerIndexToDate(lunesSemana, i);
-            if (fechaDia > fechaFin && fechaDia <= fechaCierreSemana) {
-              const esLaborable = (c.dias_laborables & (1 << i)) !== 0;
-              if (esLaborable || i === cierreIndex) {
-                pending.push(DIAS_SEMANA_LABELS[i]);
-              }
-            }
-          }
-          return pending;
-        })(),
-    horasSemanales: c.horas_semanales,
-    valorHoraExtra: c.valor_hora_extra,
-    diasLaborables: c.dias_laborables
-  };
-}
-
-export function calcularAjusteSemana(liquidacionDefinitiva, liquidacionAnticipada) {
-  if (!liquidacionAnticipada) return null;
-
-  const horasExtrasAjuste = liquidacionDefinitiva.horasExtras - liquidacionAnticipada.horasExtras;
-  const importeAjuste = horasExtrasAjuste * liquidacionDefinitiva.valorHoraExtra;
-
-  return {
-    horasExtras: horasExtrasAjuste,
-    importe: importeAjuste,
-    tipo: 'ajuste'
+    dias_laborables: diasLaborables
   };
 }
 
@@ -225,20 +166,67 @@ export function isDiaSuelto(horario) {
   return valor === true || valor === 1 || valor === '1';
 }
 
-export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = null, fechaFin = null) {
+export function calcularDetalleDia(horasTrabajadasDia, fecha, contrato) {
+  const c = normalizarContrato(contrato);
+  const laborable = isDiaLaborable(fecha, c.dias_laborables);
+
+  if (!laborable) {
+    return {
+      fecha,
+      horasTrabajadas: horasTrabajadasDia,
+      horasContrato: 0,
+      horasExtras: horasTrabajadasDia,
+      horasNormales: 0,
+      esDiaLaborable: false
+    };
+  }
+
+  const horasContrato = Math.min(horasTrabajadasDia, c.horas_por_dia);
+  const horasExtras = Math.max(0, horasTrabajadasDia - c.horas_por_dia);
+
+  return {
+    fecha,
+    horasTrabajadas: horasTrabajadasDia,
+    horasContrato,
+    horasExtras,
+    horasNormales: horasContrato,
+    esDiaLaborable: true
+  };
+}
+
+export function agruparHorariosPorFecha(horarios) {
+  const map = {};
+  (horarios || []).forEach((horario) => {
+    if (!map[horario.fecha]) {
+      map[horario.fecha] = [];
+    }
+    map[horario.fecha].push(horario);
+  });
+  return map;
+}
+
+export function estaEnRango(fecha, fechaInicio, fechaFin) {
+  if (fechaInicio && fecha < fechaInicio) return false;
+  if (fechaFin && fecha > fechaFin) return false;
+  return true;
+}
+
+export function calcularHorasExtrasPeriodo(horarios, contrato, fechaInicio = null, fechaFin = null) {
   const c = normalizarContrato(contrato);
 
   if (!horarios || horarios.length === 0) {
     return {
       horasExtras: 0,
       horasTrabajadas: 0,
+      horasNormales: 0,
       horasExtrasContrato: 0,
       horasExtrasDiasSueltos: 0,
       importe: 0,
       horasSemanales: c.horas_semanales,
+      horasPorDia: c.horas_por_dia,
       valorHoraExtra: c.valor_hora_extra,
       diasLaborables: c.dias_laborables,
-      semanas: [],
+      dias: [],
       diasSueltos: []
     };
   }
@@ -254,58 +242,78 @@ export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = 
     }
   });
 
-  const horariosPorSemana = {};
-  horariosNormales.forEach((horario) => {
-    const semanaLunes = getMondayOfWeek(horario.fecha);
-    if (!horariosPorSemana[semanaLunes]) {
-      horariosPorSemana[semanaLunes] = [];
-    }
-    horariosPorSemana[semanaLunes].push(horario);
+  const porFecha = agruparHorariosPorFecha(horariosNormales);
+  const dias = [];
+
+  Object.entries(porFecha).forEach(([fecha, registros]) => {
+    if (!estaEnRango(fecha, fechaInicio, fechaFin)) return;
+
+    const totalMinutos = registros.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
+    const horasTrabajadas = totalMinutos / 60;
+    const detalle = calcularDetalleDia(horasTrabajadas, fecha, c);
+
+    dias.push({
+      ...detalle,
+      registros
+    });
   });
 
-  let horasExtrasContrato = 0;
-  let horasTrabajadas = 0;
-  const semanas = [];
+  dias.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-  Object.entries(horariosPorSemana).forEach(([lunesSemana, horariosSemana]) => {
-    const liquidacion = calcularLiquidacionSemana(
-      horariosSemana,
-      c,
-      lunesSemana,
-      fechaInicio,
-      fechaFin
-    );
-    horasTrabajadas += liquidacion.horasTrabajadas;
-    horasExtrasContrato += liquidacion.horasExtras;
-    semanas.push(liquidacion);
-  });
+  const diasSueltosDetalle = diasSueltos
+    .filter((horario) => estaEnRango(horario.fecha, fechaInicio, fechaFin))
+    .map((horario) => {
+      const horas = (horario.duracion_minutos || 0) / 60;
+      return {
+        horario,
+        horas,
+        importe: horas * c.valor_hora_extra
+      };
+    });
 
-  const diasSueltosDetalle = diasSueltos.map((horario) => {
-    const horas = (horario.duracion_minutos || 0) / 60;
-    return {
-      horario,
-      horas,
-      importe: horas * c.valor_hora_extra
-    };
-  });
-
+  const horasExtrasContrato = dias.reduce((sum, d) => sum + d.horasExtras, 0);
+  const horasNormales = dias.reduce((sum, d) => sum + d.horasContrato, 0);
+  const horasTrabajadasNormales = dias.reduce((sum, d) => sum + d.horasTrabajadas, 0);
   const horasExtrasDiasSueltos = diasSueltosDetalle.reduce((sum, d) => sum + d.horas, 0);
-  const horasTrabajadasDiasSueltos = horasExtrasDiasSueltos;
-  horasTrabajadas += horasTrabajadasDiasSueltos;
-
+  const horasTrabajadas = horasTrabajadasNormales + horasExtrasDiasSueltos;
   const horasExtras = horasExtrasContrato + horasExtrasDiasSueltos;
 
   return {
     horasExtras,
     horasTrabajadas,
+    horasNormales,
     horasExtrasContrato,
     horasExtrasDiasSueltos,
     importe: horasExtras * c.valor_hora_extra,
     horasSemanales: c.horas_semanales,
+    horasPorDia: c.horas_por_dia,
     valorHoraExtra: c.valor_hora_extra,
     diasLaborables: c.dias_laborables,
-    semanas,
+    dias,
     diasSueltos: diasSueltosDetalle
+  };
+}
+
+/** @deprecated Usar calcularHorasExtrasPeriodo */
+export function calcularHorasExtrasPorSemanas(horarios, contrato, fechaInicio = null, fechaFin = null) {
+  return calcularHorasExtrasPeriodo(horarios, contrato, fechaInicio, fechaFin);
+}
+
+export function calcularLiquidacionPeriodo(horarios, contrato, fechaInicio, fechaFin) {
+  const resultado = calcularHorasExtrasPeriodo(horarios, contrato, fechaInicio, fechaFin);
+
+  return {
+    fechaInicio,
+    fechaFin,
+    numDias: obtenerDiasEnRango(fechaInicio, fechaFin).length,
+    horasTrabajadas: resultado.horasTrabajadas,
+    horasEsperadas: resultado.horasNormales,
+    horasExtras: resultado.horasExtras,
+    importe: resultado.importe,
+    dias: resultado.dias,
+    diasSueltos: resultado.diasSueltos,
+    horasPorDia: resultado.horasPorDia,
+    valorHoraExtra: resultado.valorHoraExtra
   };
 }
 
@@ -335,13 +343,13 @@ export function calcularResumenHorasExtrasMultiples(horarios, fechaInicio = null
   Object.values(horariosPorContrato).forEach((contratoData) => {
     const contratoFromMap = contratosMap[contratoData.contratoId];
     const contrato = {
-      horas_semanales: contratoData.horarios[0]?.horas_semanales,
-      valor_hora_extra: contratoData.horarios[0]?.valor_hora_extra,
-      dias_laborables: contratoData.horarios[0]?.dias_laborables,
-      dia_cierre_liquidacion: contratoFromMap?.dia_cierre_liquidacion ?? contratoData.horarios[0]?.dia_cierre_liquidacion
+      horas_semanales: contratoFromMap?.horas_semanales ?? contratoData.horarios[0]?.horas_semanales,
+      horas_por_dia: contratoFromMap?.horas_por_dia ?? contratoData.horarios[0]?.horas_por_dia,
+      valor_hora_extra: contratoFromMap?.valor_hora_extra ?? contratoData.horarios[0]?.valor_hora_extra,
+      dias_laborables: contratoFromMap?.dias_laborables ?? contratoData.horarios[0]?.dias_laborables
     };
 
-    const resultado = calcularHorasExtrasPorSemanas(
+    const resultado = calcularHorasExtrasPeriodo(
       contratoData.horarios,
       contrato,
       fechaInicio,
@@ -352,26 +360,19 @@ export function calcularResumenHorasExtrasMultiples(horarios, fechaInicio = null
     totalHorasTrabajadas += resultado.horasTrabajadas;
     totalImporte += resultado.importe;
 
-    const tieneAnticipada = resultado.semanas.some((s) => !s.esDefinitiva);
-    const tieneDefinitiva = resultado.semanas.some((s) => s.esDefinitiva);
-
     detallesPorContrato.push({
       contratoId: contratoData.contratoId,
       contratoNombre: contratoData.contratoNombre,
       horasExtras: resultado.horasExtras,
       horasTrabajadas: resultado.horasTrabajadas,
+      horasNormales: resultado.horasNormales,
       importe: resultado.importe,
       valorHoraExtra: resultado.valorHoraExtra,
       horasSemanales: resultado.horasSemanales,
+      horasPorDia: resultado.horasPorDia,
       diasLaborables: resultado.diasLaborables,
-      semanas: resultado.semanas,
-      tipoLiquidacion: tieneAnticipada && !tieneDefinitiva
-        ? 'anticipada'
-        : tieneDefinitiva && tieneAnticipada
-          ? 'mixta'
-          : tieneDefinitiva
-            ? 'definitiva'
-            : 'anticipada'
+      dias: resultado.dias,
+      diasSueltos: resultado.diasSueltos
     });
   });
 
@@ -383,26 +384,21 @@ export function calcularResumenHorasExtrasMultiples(horarios, fechaInicio = null
   };
 }
 
-export function construirPayloadLiquidaciones(detallesPorContrato, fechaInicio, fechaFin) {
-  const payloads = [];
+export function liquidacionCubreDia(liquidacion, fecha) {
+  if (!liquidacion?.fecha_inicio || !liquidacion?.fecha_cierre) return false;
+  if (liquidacion.tipo === 'ajuste') return false;
+  return fecha >= liquidacion.fecha_inicio && fecha <= liquidacion.fecha_cierre;
+}
 
-  detallesPorContrato.forEach((detalle) => {
-    detalle.semanas.forEach((semana) => {
-      payloads.push({
-        contrato_id: detalle.contratoId,
-        semana_lunes: semana.semanaLunes,
-        fecha_inicio: fechaInicio,
-        fecha_cierre: fechaFin,
-        horas_trabajadas: semana.horasTrabajadas,
-        horas_esperadas: semana.horasEsperadas,
-        horas_extras: semana.horasExtras,
-        importe: semana.importe,
-        tipo: semana.tipo
-      });
-    });
-  });
+export function encontrarDiasYaLiquidados(liquidaciones, contratoId, fechaInicio, fechaFin) {
+  const relevantes = (liquidaciones || []).filter(
+    (l) => l.contrato_id === contratoId && l.tipo !== 'ajuste'
+  );
+  const diasPropuestos = obtenerDiasEnRango(fechaInicio, fechaFin);
 
-  return payloads;
+  return diasPropuestos.filter((dia) =>
+    relevantes.some((l) => liquidacionCubreDia(l, dia))
+  );
 }
 
 export function isLiquidacionAgrupada(liquidacion) {
@@ -414,10 +410,11 @@ export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
   const grupos = {};
 
   liquidaciones.forEach((liq) => {
-    const agrupada = isLiquidacionAgrupada(liq);
-    const key = agrupada
-      ? `agrupada-${liq.contrato_id}-${liq.fecha_inicio}-${liq.fecha_cierre}`
-      : `${liq.contrato_id}-${liq.semana_lunes}`;
+    if (liq.tipo === 'ajuste') return;
+
+    const inicio = liq.fecha_inicio;
+    const fin = liq.fecha_cierre;
+    const key = `${liq.contrato_id}-${inicio}-${fin}`;
 
     if (!grupos[key]) {
       const contrato = contratos.find((c) => c.id === liq.contrato_id);
@@ -425,11 +422,12 @@ export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
         contratoId: liq.contrato_id,
         contratoNombre: liq.contrato_nombre,
         contratoColor: liq.contrato_color || contrato?.color || '#8b5cf6',
+        periodoInicio: inicio,
+        periodoFin: fin,
+        numDias: obtenerDiasEnRango(inicio, fin).length,
+        agrupada: isLiquidacionAgrupada(liq) || inicio !== liq.semana_lunes,
         semanaLunes: liq.semana_lunes,
-        semanaFin: getSundayOfWeek(liq.semana_lunes),
-        periodoInicio: agrupada ? liq.fecha_inicio : null,
-        periodoFin: agrupada ? liq.fecha_cierre : null,
-        agrupada,
+        semanaFin: getSundayOfWeek(liq.semana_lunes || inicio),
         registros: []
       };
     }
@@ -437,27 +435,24 @@ export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
     grupos[key].registros.push(liq);
   });
 
-  return Object.values(grupos).sort((a, b) => {
-    const fechaA = a.agrupada ? a.periodoInicio : a.semanaLunes;
-    const fechaB = b.agrupada ? b.periodoInicio : b.semanaLunes;
-    return fechaB.localeCompare(fechaA);
-  });
+  return Object.values(grupos).sort((a, b) =>
+    b.periodoInicio.localeCompare(a.periodoInicio)
+  );
 }
 
 export function contarSemanasEnPeriodo(fechaInicio, fechaFin) {
   if (!fechaInicio || !fechaFin) return 0;
 
   const semanas = new Set();
-  const inicio = parseDateLocal(fechaInicio);
-  const fin = parseDateLocal(fechaFin);
-  const current = new Date(inicio);
-
-  while (current <= fin) {
-    semanas.add(getMondayOfWeek(formatDateLocal(current)));
-    current.setDate(current.getDate() + 1);
-  }
+  obtenerDiasEnRango(fechaInicio, fechaFin).forEach((fecha) => {
+    semanas.add(getMondayOfWeek(fecha));
+  });
 
   return semanas.size;
+}
+
+export function contarDiasEnPeriodo(fechaInicio, fechaFin) {
+  return obtenerDiasEnRango(fechaInicio, fechaFin).length;
 }
 
 export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInicio, fechaFin) {
@@ -470,9 +465,9 @@ export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInic
       subtotales[contratoId] = {
         nombre: horario.contrato_nombre,
         horasSemanales: horario.horas_semanales || 0,
+        horasPorDia: horario.horas_por_dia || 0,
         valorHoraExtra: horario.valor_hora_extra || 0,
         diasLaborables: horario.dias_laborables,
-        diaCierreLiquidacion: horario.dia_cierre_liquidacion,
         totalMinutos: 0,
         registros: []
       };
@@ -484,13 +479,13 @@ export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInic
 
   Object.keys(subtotales).forEach((contratoId) => {
     const subtotal = subtotales[contratoId];
-    const resultado = calcularHorasExtrasPorSemanas(
+    const resultado = calcularHorasExtrasPeriodo(
       subtotal.registros,
       {
         horas_semanales: subtotal.horasSemanales,
+        horas_por_dia: subtotal.horasPorDia,
         valor_hora_extra: subtotal.valorHoraExtra,
-        dias_laborables: subtotal.diasLaborables,
-        dia_cierre_liquidacion: subtotal.diaCierreLiquidacion
+        dias_laborables: subtotal.diasLaborables
       },
       fechaInicio,
       fechaFin
@@ -499,13 +494,12 @@ export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInic
     const totalHoras = subtotal.totalMinutos / 60;
 
     subtotal.totalHoras = totalHoras;
-    subtotal.horasEsperadas = resultado.semanas.reduce((sum, s) => sum + s.horasEsperadas, 0);
+    subtotal.horasNormales = resultado.horasNormales;
     subtotal.horasExtras = resultado.horasExtras;
     subtotal.horasExtrasContrato = resultado.horasExtrasContrato;
     subtotal.horasExtrasDiasSueltos = resultado.horasExtrasDiasSueltos;
-    subtotal.horasNormales = Math.max(0, totalHoras - resultado.horasExtras);
     subtotal.totalExtras = resultado.importe;
-    subtotal.semanas = resultado.semanas;
+    subtotal.dias = resultado.dias;
     subtotal.diasSueltos = resultado.diasSueltos;
   });
 
@@ -541,14 +535,15 @@ export function buildInformeContratosSnapshot(horariosContrato, fechaInicio, fec
     || (listaContratos.length === 1 ? listaContratos[0].nombre : null);
 
   return {
-    version: 1,
+    version: 2,
     tipo: 'contratos',
     tipoInforme: 'detallado',
     fechaInicio,
     fechaFin,
     contratoId: options.contratoId ?? null,
     contratoNombre,
-    numSemanas: options.numSemanas ?? contarSemanasEnPeriodo(fechaInicio, fechaFin),
+    numDias: contarDiasEnPeriodo(fechaInicio, fechaFin),
+    numSemanas: contarSemanasEnPeriodo(fechaInicio, fechaFin),
     liquidacionAgrupada: !!options.liquidacionAgrupada,
     horariosContrato: horariosContrato || [],
     subtotalesPorContrato,
