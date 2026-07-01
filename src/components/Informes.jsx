@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek, isDiaSuelto } from '../utils/contratoHoras';
+import { calcularHorasExtrasPorSemanas, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
@@ -249,32 +249,7 @@ function Informes() {
     { id: 'mensual', label: 'Mensual', icon: Calendar, description: 'Resumen mensual de horas trabajadas' }
   ];
 
-  const getFinSemana = (semanaLunes) => getSundayOfWeek(semanaLunes);
-
-  const agruparLiquidacionesPorSemana = () => {
-    const grupos = {};
-
-    liquidaciones.forEach((liq) => {
-      const key = `${liq.contrato_id}-${liq.semana_lunes}`;
-      if (!grupos[key]) {
-        grupos[key] = {
-          contratoId: liq.contrato_id,
-          contratoNombre: liq.contrato_nombre,
-          contratoColor: liq.contrato_color || '#8b5cf6',
-          semanaLunes: liq.semana_lunes,
-          semanaFin: getFinSemana(liq.semana_lunes),
-          registros: []
-        };
-      }
-      grupos[key].registros.push(liq);
-    });
-
-    return Object.values(grupos).sort((a, b) => {
-      const cmpSemana = b.semanaLunes.localeCompare(a.semanaLunes);
-      if (cmpSemana !== 0) return cmpSemana;
-      return (a.contratoNombre || '').localeCompare(b.contratoNombre || '');
-    });
-  };
+  const agruparLiquidacionesPorSemana = () => agruparLiquidacionesContrato(liquidaciones, contratos);
 
   const liquidacionesPorSemana = tipoDatos === 'liquidaciones' ? agruparLiquidacionesPorSemana() : [];
   const totalSemanasLiquidadas = liquidacionesPorSemana.length;
@@ -491,10 +466,16 @@ function Informes() {
     setAnulandoLiquidacion(true);
 
     try {
-      const response = await apiService.anularLiquidacionesSemana(
-        grupoLiquidacionToAnular.contratoId,
-        grupoLiquidacionToAnular.semanaLunes
-      );
+      const response = grupoLiquidacionToAnular.agrupada
+        ? await apiService.anularLiquidacionPeriodoAgrupado(
+            grupoLiquidacionToAnular.contratoId,
+            grupoLiquidacionToAnular.periodoInicio,
+            grupoLiquidacionToAnular.periodoFin
+          )
+        : await apiService.anularLiquidacionesSemana(
+            grupoLiquidacionToAnular.contratoId,
+            grupoLiquidacionToAnular.semanaLunes
+          );
       if (response.success) {
         await loadDatos();
       } else {
@@ -932,24 +913,34 @@ function Informes() {
               const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
                 || grupo.registros.find((r) => r.tipo === 'anticipada');
               const horasExtrasGrupo = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
+              const grupoKey = grupo.agrupada
+                ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
+                : `${grupo.contratoId}-${grupo.semanaLunes}`;
 
               return (
                 <div
-                  key={`${grupo.contratoId}-${grupo.semanaLunes}`}
+                  key={grupoKey}
                   className="border border-gray-200 rounded-lg overflow-hidden"
                   style={{ borderLeftWidth: '4px', borderLeftColor: grupo.contratoColor }}
                 >
                   <div className="bg-gray-50 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-wrap gap-1">
                         <div
                           className="w-3 h-3 rounded-full flex-shrink-0"
                           style={{ backgroundColor: grupo.contratoColor }}
                         />
                         <span className="font-medium text-gray-900">{grupo.contratoNombre}</span>
+                        {grupo.agrupada && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                            Agrupada
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-600 mt-1">
-                        Semana {formatDateLong(grupo.semanaLunes)} – {formatDateLong(grupo.semanaFin)}
+                        {grupo.agrupada
+                          ? `Periodo ${formatDateLong(grupo.periodoInicio)} – ${formatDateLong(grupo.periodoFin)}`
+                          : `Semana ${formatDateLong(grupo.semanaLunes)} – ${formatDateLong(grupo.semanaFin)}`}
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -1482,7 +1473,11 @@ function Informes() {
         }}
         onConfirm={handleAnularLiquidacionConfirm}
         title="Anular liquidación de la semana"
-        message={`¿Anular la liquidación de la semana del ${grupoLiquidacionToAnular ? formatDate(grupoLiquidacionToAnular.semanaLunes) : ''}? Podrás volver a registrarla después.`}
+        message={
+          grupoLiquidacionToAnular?.agrupada
+            ? `¿Anular la liquidación agrupada del ${grupoLiquidacionToAnular ? formatDate(grupoLiquidacionToAnular.periodoInicio) : ''} al ${grupoLiquidacionToAnular ? formatDate(grupoLiquidacionToAnular.periodoFin) : ''}?`
+            : `¿Anular la liquidación de la semana del ${grupoLiquidacionToAnular ? formatDate(grupoLiquidacionToAnular.semanaLunes) : ''}? Podrás volver a registrarla después.`
+        }
         confirmText="Anular liquidación"
         cancelText="Cancelar"
         type="danger"

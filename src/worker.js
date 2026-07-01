@@ -1268,7 +1268,7 @@ export default {
       // POST /api/liquidaciones-contrato - Registrar liquidación
       if (url.pathname === '/api/liquidaciones-contrato' && request.method === 'POST') {
         try {
-          const { contrato_id, fecha_inicio, fecha_fin, notas } = await request.json();
+          const { contrato_id, fecha_inicio, fecha_fin, notas, agrupar_semanas } = await request.json();
 
           if (!contrato_id || !fecha_inicio || !fecha_fin) {
             return new Response(JSON.stringify({
@@ -1312,7 +1312,165 @@ export default {
           const resultado = calcularHorasExtrasPorSemanas(horarios, contrato, fecha_inicio, fecha_fin);
           const creadas = [];
 
+          const verificarSemanaEnLiquidacionAgrupada = async (semanaLunes) => {
+            const domingo = new Date(semanaLunes + 'T00:00:00');
+            domingo.setDate(domingo.getDate() + 6);
+            const finSemana = domingo.toISOString().split('T')[0];
+            return db.getLiquidacionAgrupadaSolapada(
+              authResult.userId,
+              parseInt(contrato_id),
+              semanaLunes,
+              finSemana
+            );
+          };
+
+          if (agrupar_semanas) {
+            if (resultado.semanas.length < 2) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'Para una liquidación agrupada selecciona un periodo de al menos dos semanas'
+              }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            const solapada = await db.getLiquidacionAgrupadaSolapada(
+              authResult.userId,
+              parseInt(contrato_id),
+              fecha_inicio,
+              fecha_fin
+            );
+            if (solapada) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'Ya existe una liquidación agrupada que solapa con este periodo'
+              }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            for (const semana of resultado.semanas) {
+              const cubierta = await verificarSemanaEnLiquidacionAgrupada(semana.semanaLunes);
+              if (cubierta) {
+                return new Response(JSON.stringify({
+                  success: false,
+                  error: `La semana del ${semana.semanaLunes} ya está incluida en otra liquidación agrupada`
+                }), {
+                  status: 409,
+                  headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+              }
+
+              for (const tipoCheck of ['anticipada', 'definitiva']) {
+                const existing = await db.getLiquidacionByTipo(
+                  authResult.userId,
+                  parseInt(contrato_id),
+                  semana.semanaLunes,
+                  tipoCheck
+                );
+                if (existing) {
+                  return new Response(JSON.stringify({
+                    success: false,
+                    error: `Ya existe una liquidación ${tipoCheck} para la semana del ${semana.semanaLunes}`
+                  }), {
+                    status: 409,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                  });
+                }
+              }
+            }
+
+            const horasTrabajadas = resultado.semanas.reduce((sum, s) => sum + s.horasTrabajadas, 0);
+            const horasEsperadas = resultado.semanas.reduce((sum, s) => sum + s.horasEsperadas, 0);
+            const horasExtras = resultado.semanas.reduce((sum, s) => sum + s.horasExtras, 0);
+            const importe = horasExtras * (contrato.valor_hora_extra || 0);
+            const tipo = resultado.semanas.every((s) => s.esDefinitiva) ? 'definitiva' : 'anticipada';
+            const semanaLunes = [...resultado.semanas]
+              .map((s) => s.semanaLunes)
+              .sort()[0];
+
+            const insertResult = await db.createLiquidacionContrato(authResult.userId, {
+              contrato_id: parseInt(contrato_id),
+              semana_lunes: semanaLunes,
+              fecha_inicio,
+              fecha_cierre: fecha_fin,
+              horas_trabajadas: horasTrabajadas,
+              horas_esperadas: horasEsperadas,
+              horas_extras: horasExtras,
+              importe,
+              tipo,
+              notas: notas || null,
+              liquidacion_agrupada: 1
+            });
+
+            creadas.push({
+              id: insertResult.meta?.last_row_id,
+              semanaLunes,
+              horasTrabajadas,
+              horasEsperadas,
+              horasExtras,
+              importe,
+              tipo,
+              liquidacion_agrupada: 1
+            });
+
+            if (tipo === 'definitiva') {
+              for (const semana of resultado.semanas) {
+                const anticipada = await db.getLiquidacionByTipo(
+                  authResult.userId,
+                  parseInt(contrato_id),
+                  semana.semanaLunes,
+                  'anticipada'
+                );
+
+                if (anticipada) {
+                  const ajuste = calcularAjusteSemana(semana, {
+                    horasExtras: anticipada.horas_extras,
+                    valorHoraExtra: contrato.valor_hora_extra
+                  });
+
+                  if (ajuste) {
+                    const ajusteResult = await db.createLiquidacionContrato(authResult.userId, {
+                      contrato_id: parseInt(contrato_id),
+                      semana_lunes: semana.semanaLunes,
+                      fecha_inicio,
+                      fecha_cierre: fecha_fin,
+                      horas_trabajadas: semana.horasTrabajadas,
+                      horas_esperadas: semana.horasEsperadas,
+                      horas_extras: ajuste.horasExtras,
+                      importe: ajuste.importe,
+                      tipo: 'ajuste',
+                      notas: 'Ajuste por liquidación anticipada previa',
+                      liquidacion_agrupada: 1
+                    });
+
+                    creadas.push({
+                      id: ajusteResult.meta?.last_row_id,
+                      semanaLunes: semana.semanaLunes,
+                      horasExtras: ajuste.horasExtras,
+                      importe: ajuste.importe,
+                      tipo: 'ajuste',
+                      liquidacion_agrupada: 1
+                    });
+                  }
+                }
+              }
+            }
+          } else {
           for (const semana of resultado.semanas) {
+            const cubierta = await verificarSemanaEnLiquidacionAgrupada(semana.semanaLunes);
+            if (cubierta) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: `La semana del ${semana.semanaLunes} ya está incluida en una liquidación agrupada del ${cubierta.fecha_inicio} al ${cubierta.fecha_cierre}`
+              }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
             const existing = await db.getLiquidacionByTipo(
               authResult.userId,
               parseInt(contrato_id),
@@ -1340,7 +1498,8 @@ export default {
               horas_extras: semana.horasExtras,
               importe: semana.importe,
               tipo: semana.tipo,
-              notas: notas || null
+              notas: notas || null,
+              liquidacion_agrupada: 0
             });
 
             creadas.push({
@@ -1374,7 +1533,8 @@ export default {
                     horas_extras: ajuste.horasExtras,
                     importe: ajuste.importe,
                     tipo: 'ajuste',
-                    notas: 'Ajuste por liquidación anticipada previa'
+                    notas: 'Ajuste por liquidación anticipada previa',
+                    liquidacion_agrupada: 0
                   });
 
                   creadas.push({
@@ -1387,6 +1547,7 @@ export default {
                 }
               }
             }
+          }
           }
 
           return new Response(JSON.stringify({
@@ -1448,6 +1609,61 @@ export default {
           });
         } catch (error) {
           console.error('Error en /api/liquidaciones-contrato/semana (DELETE):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
+      // DELETE /api/liquidaciones-contrato/periodo - Anular liquidación agrupada por periodo
+      if (url.pathname === '/api/liquidaciones-contrato/periodo' && request.method === 'DELETE') {
+        try {
+          const contratoId = parseInt(url.searchParams.get('contrato_id'), 10);
+          const fechaInicio = url.searchParams.get('fecha_inicio');
+          const fechaCierre = url.searchParams.get('fecha_cierre');
+
+          if (!contratoId || !fechaInicio || !fechaCierre) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Contrato, fecha_inicio y fecha_cierre son requeridos'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const result = await db.deleteLiquidacionesPeriodoAgrupado(
+            authResult.userId,
+            contratoId,
+            fechaInicio,
+            fechaCierre
+          );
+
+          if (!result.success || result.meta.changes === 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'No se encontró una liquidación agrupada para anular en ese periodo'
+            }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Liquidación agrupada anulada correctamente',
+            data: { eliminadas: result.meta.changes }
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/liquidaciones-contrato/periodo (DELETE):', error);
           return new Response(JSON.stringify({
             success: false,
             error: 'Error interno del servidor',

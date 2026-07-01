@@ -328,6 +328,17 @@ class ApiService {
     });
   }
 
+  async anularLiquidacionPeriodoAgrupado(contratoId, fechaInicio, fechaCierre) {
+    const params = new URLSearchParams({
+      contrato_id: String(contratoId),
+      fecha_inicio: fechaInicio,
+      fecha_cierre: fechaCierre
+    });
+    return this.request(`/api/liquidaciones-contrato/periodo?${params.toString()}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getAjustePendiente(contratoId, semanaLunes, fechaFin = null) {
     const params = new URLSearchParams();
     params.append('contrato_id', contratoId);

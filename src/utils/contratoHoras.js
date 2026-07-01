@@ -404,3 +404,42 @@ export function construirPayloadLiquidaciones(detallesPorContrato, fechaInicio, 
 
   return payloads;
 }
+
+export function isLiquidacionAgrupada(liquidacion) {
+  const valor = liquidacion?.liquidacion_agrupada;
+  return valor === 1 || valor === true || valor === '1';
+}
+
+export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
+  const grupos = {};
+
+  liquidaciones.forEach((liq) => {
+    const agrupada = isLiquidacionAgrupada(liq);
+    const key = agrupada
+      ? `agrupada-${liq.contrato_id}-${liq.fecha_inicio}-${liq.fecha_cierre}`
+      : `${liq.contrato_id}-${liq.semana_lunes}`;
+
+    if (!grupos[key]) {
+      const contrato = contratos.find((c) => c.id === liq.contrato_id);
+      grupos[key] = {
+        contratoId: liq.contrato_id,
+        contratoNombre: liq.contrato_nombre,
+        contratoColor: liq.contrato_color || contrato?.color || '#8b5cf6',
+        semanaLunes: liq.semana_lunes,
+        semanaFin: getSundayOfWeek(liq.semana_lunes),
+        periodoInicio: agrupada ? liq.fecha_inicio : null,
+        periodoFin: agrupada ? liq.fecha_cierre : null,
+        agrupada,
+        registros: []
+      };
+    }
+
+    grupos[key].registros.push(liq);
+  });
+
+  return Object.values(grupos).sort((a, b) => {
+    const fechaA = a.agrupada ? a.periodoInicio : a.semanaLunes;
+    const fechaB = b.agrupada ? b.periodoInicio : b.semanaLunes;
+    return fechaB.localeCompare(fechaA);
+  });
+}

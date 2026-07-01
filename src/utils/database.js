@@ -336,12 +336,23 @@ export class DatabaseService {
     return await stmt.bind(userId, contratoId, semanaLunes, tipo).first();
   }
 
+  async getLiquidacionAgrupadaSolapada(userId, contratoId, fechaInicio, fechaFin) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM liquidaciones_contrato
+      WHERE user_id = ? AND contrato_id = ? AND liquidacion_agrupada = 1
+        AND tipo IN ('anticipada', 'definitiva')
+        AND fecha_inicio <= ? AND fecha_cierre >= ?
+      LIMIT 1
+    `);
+    return await stmt.bind(userId, contratoId, fechaFin, fechaInicio).first();
+  }
+
   async createLiquidacionContrato(userId, data) {
     const stmt = this.db.prepare(`
       INSERT INTO liquidaciones_contrato (
         user_id, contrato_id, semana_lunes, fecha_inicio, fecha_cierre,
-        horas_trabajadas, horas_esperadas, horas_extras, importe, tipo, notas
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        horas_trabajadas, horas_esperadas, horas_extras, importe, tipo, notas, liquidacion_agrupada
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     return await stmt.bind(
       userId,
@@ -354,7 +365,8 @@ export class DatabaseService {
       data.horas_extras,
       data.importe,
       data.tipo,
-      data.notas || null
+      data.notas || null,
+      data.liquidacion_agrupada ? 1 : 0
     ).run();
   }
 
@@ -369,7 +381,17 @@ export class DatabaseService {
     const stmt = this.db.prepare(`
       DELETE FROM liquidaciones_contrato
       WHERE user_id = ? AND contrato_id = ? AND semana_lunes = ?
+        AND (liquidacion_agrupada IS NULL OR liquidacion_agrupada = 0)
     `);
     return await stmt.bind(userId, contratoId, semanaLunes).run();
+  }
+
+  async deleteLiquidacionesPeriodoAgrupado(userId, contratoId, fechaInicio, fechaCierre) {
+    const stmt = this.db.prepare(`
+      DELETE FROM liquidaciones_contrato
+      WHERE user_id = ? AND contrato_id = ? AND liquidacion_agrupada = 1
+        AND fecha_inicio = ? AND fecha_cierre = ?
+    `);
+    return await stmt.bind(userId, contratoId, fechaInicio, fechaCierre).run();
   }
 }

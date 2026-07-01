@@ -3,7 +3,7 @@ import { FileCheck, Trash2, AlertCircle } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
-import { getSundayOfWeek } from '../utils/contratoHoras';
+import { agruparLiquidacionesContrato } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
 
 const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, contratos, onDataChange }, ref) => {
@@ -54,25 +54,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
     }
   };
 
-  const agruparPorSemana = () => {
-    const grupos = {};
-    liquidaciones.forEach((liq) => {
-      const key = `${liq.contrato_id}-${liq.semana_lunes}`;
-      if (!grupos[key]) {
-        const contrato = contratos?.find((c) => c.id === liq.contrato_id);
-        grupos[key] = {
-          contratoId: liq.contrato_id,
-          contratoNombre: liq.contrato_nombre,
-          contratoColor: liq.contrato_color || contrato?.color || '#8b5cf6',
-          semanaLunes: liq.semana_lunes,
-          semanaFin: getSundayOfWeek(liq.semana_lunes),
-          registros: []
-        };
-      }
-      grupos[key].registros.push(liq);
-    });
-    return Object.values(grupos).sort((a, b) => b.semanaLunes.localeCompare(a.semanaLunes));
-  };
+  const agruparPorSemana = () => agruparLiquidacionesContrato(liquidaciones, contratos || []);
 
   const handleAnularClick = (grupo) => {
     setGrupoToAnular(grupo);
@@ -81,15 +63,23 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
 
   const handleAnularConfirm = async () => {
     if (!grupoToAnular) return;
-    const key = `${grupoToAnular.contratoId}-${grupoToAnular.semanaLunes}`;
+    const key = grupoToAnular.agrupada
+      ? `agrupada-${grupoToAnular.contratoId}-${grupoToAnular.periodoInicio}-${grupoToAnular.periodoFin}`
+      : `${grupoToAnular.contratoId}-${grupoToAnular.semanaLunes}`;
     setAnulandoKey(key);
     setShowAnularModal(false);
 
     try {
-      const response = await apiService.anularLiquidacionesSemana(
-        grupoToAnular.contratoId,
-        grupoToAnular.semanaLunes
-      );
+      const response = grupoToAnular.agrupada
+        ? await apiService.anularLiquidacionPeriodoAgrupado(
+            grupoToAnular.contratoId,
+            grupoToAnular.periodoInicio,
+            grupoToAnular.periodoFin
+          )
+        : await apiService.anularLiquidacionesSemana(
+            grupoToAnular.contratoId,
+            grupoToAnular.semanaLunes
+          );
       if (response.success) {
         await loadLiquidaciones();
         if (onDataChange) onDataChange();
@@ -143,14 +133,16 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
       <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
         <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-900">
-          Puedes anular una liquidación registrada por error. Se eliminarán todos los registros de esa semana
-          (anticipada, definitiva y ajuste).
+          Puedes anular una liquidación registrada por error. Las agrupadas se anulan por periodo;
+          las semanales eliminan todos los registros de esa semana (anticipada, definitiva y ajuste).
         </p>
       </div>
 
       <div className="space-y-3">
         {grupos.map((grupo) => {
-          const key = `${grupo.contratoId}-${grupo.semanaLunes}`;
+          const key = grupo.agrupada
+            ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
+            : `${grupo.contratoId}-${grupo.semanaLunes}`;
           const importeTotal = grupo.registros.reduce((sum, r) => sum + parseFloat(r.importe || 0), 0);
           const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
             || grupo.registros.find((r) => r.tipo === 'anticipada');
@@ -164,15 +156,22 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
             >
               <div className="bg-gray-50 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-wrap gap-1">
                     <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: grupo.contratoColor }}
                     />
                     <span className="font-medium text-gray-900">{grupo.contratoNombre}</span>
+                    {grupo.agrupada && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                        Agrupada
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    Semana {formatFechaEU(grupo.semanaLunes)} – {formatFechaEU(grupo.semanaFin)}
+                    {grupo.agrupada
+                      ? `Periodo ${formatFechaEU(grupo.periodoInicio)} – ${formatFechaEU(grupo.periodoFin)}`
+                      : `Semana ${formatFechaEU(grupo.semanaLunes)} – ${formatFechaEU(grupo.semanaFin)}`}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     {horasExtras.toFixed(2)}h extras
@@ -186,7 +185,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                   className="btn-secondary flex items-center justify-center gap-2 text-sm text-red-700 border-red-200 hover:bg-red-50 w-full sm:w-auto"
                 >
                   <Trash2 className="h-4 w-4" />
-                  <span>{anulandoKey === key ? 'Anulando...' : 'Anular semana'}</span>
+                  <span>{anulandoKey === key ? 'Anulando...' : (grupo.agrupada ? 'Anular periodo' : 'Anular semana')}</span>
                 </button>
               </div>
 
@@ -235,7 +234,11 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
         }}
         onConfirm={handleAnularConfirm}
         title="Anular liquidación de la semana"
-        message={`¿Anular la liquidación de la semana del ${grupoToAnular ? formatFechaEU(grupoToAnular.semanaLunes) : ''}? Se eliminarán todos los registros de esa semana y podrás volver a registrarla.`}
+        message={
+          grupoToAnular?.agrupada
+            ? `¿Anular la liquidación agrupada del ${grupoToAnular ? formatFechaEU(grupoToAnular.periodoInicio) : ''} al ${grupoToAnular ? formatFechaEU(grupoToAnular.periodoFin) : ''}? Se eliminarán todos los registros de ese periodo.`
+            : `¿Anular la liquidación de la semana del ${grupoToAnular ? formatFechaEU(grupoToAnular.semanaLunes) : ''}? Se eliminarán todos los registros de esa semana y podrás volver a registrarla.`
+        }
         confirmText="Anular liquidación"
         cancelText="Cancelar"
         type="danger"

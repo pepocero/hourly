@@ -7,7 +7,9 @@ import {
   calcularResumenHorasExtrasMultiples,
   formatDiasLaborables,
   getMondayOfWeek,
-  getSundayOfWeek
+  getSundayOfWeek,
+  isLiquidacionAgrupada,
+  agruparLiquidacionesContrato
 } from '../utils/contratoHoras';
 import { formatFechaEUCorta, formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 
@@ -20,6 +22,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   const [liquidacionMsg, setLiquidacionMsg] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
+  const [agruparSemanasEnLiquidacion, setAgruparSemanasEnLiquidacion] = useState(false);
   const [horarioToDelete, setHorarioToDelete] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
 
@@ -75,6 +78,19 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
 
   const loadLiquidaciones = async () => {
     try {
+      if (fechaInicio && fechaFin) {
+        const response = await apiService.getLiquidacionesContrato(
+          contratoId || null,
+          null,
+          fechaInicio,
+          fechaFin
+        );
+        if (response.success) {
+          setLiquidaciones(response.data || []);
+        }
+        return;
+      }
+
       const semanas = [...new Set(horarios.map((h) => getMondayOfWeek(h.fecha)))];
       const allLiquidaciones = [];
 
@@ -129,11 +145,17 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       const response = await apiService.createLiquidacionContrato({
         contrato_id: parseInt(contratoId),
         fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin
+        fecha_fin: fechaFin,
+        agrupar_semanas: agruparSemanasEnLiquidacion
       });
 
       if (response.success) {
-        setLiquidacionMsg('Liquidación registrada correctamente');
+        setLiquidacionMsg(
+          agruparSemanasEnLiquidacion
+            ? 'Liquidación agrupada registrada correctamente'
+            : 'Liquidación registrada correctamente'
+        );
+        setAgruparSemanasEnLiquidacion(false);
         await loadLiquidaciones();
         if (onDataChange) onDataChange();
       } else {
@@ -207,6 +229,20 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     (d) => d.tipoLiquidacion === 'definitiva' || d.semanas?.every((s) => s.esDefinitiva)
   );
   const esMixta = esAnticipada && esDefinitiva;
+
+  const semanasEnPeriodo = useMemo(() => {
+    if (!resumenHorasExtras?.detallesPorContrato?.length) return 0;
+    const semanas = new Set();
+    resumenHorasExtras.detallesPorContrato.forEach((detalle) => {
+      (detalle.semanas || []).forEach((s) => semanas.add(s.semanaLunes));
+    });
+    return semanas.size;
+  }, [resumenHorasExtras]);
+
+  const liquidacionesAgrupadas = useMemo(
+    () => agruparLiquidacionesContrato(liquidaciones, contratos || []),
+    [liquidaciones, contratos]
+  );
 
   const getLiquidacionConfirmType = () => {
     if (esMixta) return 'warning';
@@ -510,29 +546,43 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                     <p className="text-xs text-green-700 font-medium">{liquidacionMsg}</p>
                   )}
 
-                  {liquidaciones.length > 0 && (
+                  {liquidacionesAgrupadas.length > 0 && (
                     <div className="mt-2">
                       <p className="text-xs font-medium text-gray-700 mb-2">Liquidaciones registradas:</p>
                       <div className="space-y-2">
-                        {liquidaciones.map((liq) => (
-                          <div key={liq.id} className="bg-gray-50 rounded p-2 border border-gray-200 text-xs">
-                            <div className="flex justify-between items-center">
-                              <span className={`font-medium capitalize ${
-                                liq.tipo === 'anticipada' ? 'text-amber-700' :
-                                liq.tipo === 'ajuste' ? 'text-purple-700' : 'text-green-700'
-                              }`}>
-                                {liq.tipo}
-                              </span>
-                              <span className="text-gray-500">
-                                Sem. {formatFechaEU(liq.semana_lunes)} – {formatFechaEU(getSundayOfWeek(liq.semana_lunes))}
-                              </span>
+                        {liquidacionesAgrupadas.map((grupo) => {
+                          const importeTotal = grupo.registros.reduce(
+                            (sum, r) => sum + parseFloat(r.importe || 0),
+                            0
+                          );
+                          const refLiq = grupo.registros.find((r) => r.tipo === 'definitiva')
+                            || grupo.registros.find((r) => r.tipo === 'anticipada');
+                          const grupoKey = grupo.agrupada
+                            ? `agrupada-${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`
+                            : `${grupo.contratoId}-${grupo.semanaLunes}`;
+
+                          return (
+                            <div key={grupoKey} className="bg-gray-50 rounded p-2 border border-gray-200 text-xs">
+                              <div className="flex justify-between items-center gap-2">
+                                <span className={`font-medium capitalize ${
+                                  refLiq?.tipo === 'anticipada' ? 'text-amber-700' :
+                                  refLiq?.tipo === 'ajuste' ? 'text-purple-700' : 'text-green-700'
+                                }`}>
+                                  {grupo.agrupada ? 'Agrupada' : refLiq?.tipo}
+                                </span>
+                                <span className="text-gray-500 text-right">
+                                  {grupo.agrupada
+                                    ? `${formatFechaEU(grupo.periodoInicio)} – ${formatFechaEU(grupo.periodoFin)}`
+                                    : `Sem. ${formatFechaEU(grupo.semanaLunes)} – ${formatFechaEU(grupo.semanaFin)}`}
+                                </span>
+                              </div>
+                              <p className="text-gray-600 mt-1">
+                                {refLiq ? `${parseFloat(refLiq.horas_extras).toFixed(2)}h extras` : ''}
+                                {importeTotal !== 0 && ` • ${formatEuro(importeTotal)}`}
+                              </p>
                             </div>
-                            <p className="text-gray-600 mt-1">
-                              {parseFloat(liq.horas_extras).toFixed(2)}h extras
-                              {parseFloat(liq.importe) !== 0 && ` • ${formatEuro(liq.importe)}`}
-                            </p>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -565,15 +615,44 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       {showLiquidacionModal && resumenHorasExtras && (
         <ConfirmModal
           isOpen={showLiquidacionModal}
-          onClose={() => setShowLiquidacionModal(false)}
+          onClose={() => {
+            setShowLiquidacionModal(false);
+            setAgruparSemanasEnLiquidacion(false);
+          }}
           onConfirm={handleRegistrarLiquidacionConfirm}
           title="Confirmar liquidación"
-          message="Revisa el resumen antes de registrar. Una vez guardada, no podrás duplicar la misma liquidación para la misma semana."
+          message={
+            agruparSemanasEnLiquidacion
+              ? 'Se registrará una sola liquidación que agrupa todas las semanas del periodo seleccionado.'
+              : 'Se registrará una liquidación por cada semana del periodo. Revisa el resumen antes de confirmar.'
+          }
           confirmText="Registrar liquidación"
           cancelText="Cancelar"
           type={getLiquidacionConfirmType()}
         >
           <div className="space-y-3 text-sm">
+            {semanasEnPeriodo > 1 && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                <p className="text-xs font-medium text-blue-900">
+                  Este periodo incluye {semanasEnPeriodo} semanas.
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agruparSemanasEnLiquidacion}
+                    onChange={(e) => setAgruparSemanasEnLiquidacion(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 text-primary-600 border-gray-300 rounded"
+                  />
+                  <span className="text-xs text-blue-900">
+                    <span className="font-medium">Unir semanas en una sola liquidación</span>
+                    <span className="block text-blue-800 mt-1">
+                      Si no la marcas, se creará una liquidación independiente por cada semana (comportamiento actual).
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-600">Periodo</span>
