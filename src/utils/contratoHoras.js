@@ -144,11 +144,12 @@ export function getSundayOfWeek(mondayString) {
 }
 
 function normalizarContrato(contrato) {
-  const diasLaborables = contrato.dias_laborables ?? contrato.diasLaborables ?? DIAS_LABORABLES_DEFAULT;
-  const horasSemanales = contrato.horas_semanales ?? contrato.horasSemanales ?? 0;
-  let horasPorDia = contrato.horas_por_dia ?? contrato.horasPorDia;
+  const diasLaborablesRaw = contrato.dias_laborables ?? contrato.diasLaborables ?? DIAS_LABORABLES_DEFAULT;
+  const diasLaborables = parseInt(diasLaborablesRaw, 10) || DIAS_LABORABLES_DEFAULT;
+  const horasSemanales = parseFloat(contrato.horas_semanales ?? contrato.horasSemanales ?? 0) || 0;
+  let horasPorDia = parseFloat(contrato.horas_por_dia ?? contrato.horasPorDia);
 
-  if (!horasPorDia && horasSemanales) {
+  if ((!horasPorDia || Number.isNaN(horasPorDia)) && horasSemanales) {
     const numDias = contarDiasLaborablesConfig(diasLaborables);
     horasPorDia = numDias > 0 ? horasSemanales / numDias : 0;
   }
@@ -156,7 +157,7 @@ function normalizarContrato(contrato) {
   return {
     horas_semanales: horasSemanales,
     horas_por_dia: horasPorDia || 0,
-    valor_hora_extra: contrato.valor_hora_extra ?? contrato.valorHoraExtra ?? 0,
+    valor_hora_extra: parseFloat(contrato.valor_hora_extra ?? contrato.valorHoraExtra ?? 0) || 0,
     dias_laborables: diasLaborables
   };
 }
@@ -204,29 +205,143 @@ export function getDuracionMinutosHorario(horario) {
 
 export function calcularDetalleDia(horasTrabajadasDia, fecha, contrato) {
   const c = normalizarContrato(contrato);
+  const horasTrabajadas = parseFloat(horasTrabajadasDia) || 0;
   const laborable = isDiaLaborable(fecha, c.dias_laborables);
 
   if (!laborable) {
     return {
       fecha,
-      horasTrabajadas: horasTrabajadasDia,
+      horasTrabajadas,
       horasContrato: 0,
-      horasExtras: horasTrabajadasDia,
+      horasExtras: horasTrabajadas,
       horasNormales: 0,
       esDiaLaborable: false
     };
   }
 
-  const horasContrato = Math.min(horasTrabajadasDia, c.horas_por_dia);
-  const horasExtras = Math.max(0, horasTrabajadasDia - c.horas_por_dia);
+  const horasContrato = Math.min(horasTrabajadas, c.horas_por_dia);
+  const horasExtras = Math.max(0, horasTrabajadas - c.horas_por_dia);
 
   return {
     fecha,
-    horasTrabajadas: horasTrabajadasDia,
+    horasTrabajadas,
     horasContrato,
     horasExtras,
     horasNormales: horasContrato,
     esDiaLaborable: true
+  };
+}
+
+/** Extras de un turno individual (entrada–salida). */
+export function calcularExtrasTurno(horario, contrato) {
+  const horasTurno = getDuracionMinutosHorario(horario) / 60;
+
+  if (isDiaSuelto(horario)) {
+    return {
+      fecha: horario.fecha,
+      horasTrabajadas: horasTurno,
+      horasContrato: 0,
+      horasExtras: horasTurno,
+      horasNormales: 0,
+      esDiaLaborable: false,
+      esDiaSuelto: true,
+      horasPorDia: null
+    };
+  }
+
+  const c = normalizarContrato(contrato);
+  const detalle = calcularDetalleDia(horasTurno, horario.fecha, c);
+
+  return {
+    ...detalle,
+    esDiaSuelto: false,
+    horasPorDia: c.horas_por_dia
+  };
+}
+
+/** Extras del día: suma todos los turnos normales y resta horas contrato/día una sola vez. */
+export function calcularExtrasDiaContrato(registrosDelDia, contrato, fecha) {
+  const c = normalizarContrato(contrato);
+  const normales = (registrosDelDia || []).filter((h) => !isDiaSuelto(h));
+  const minutosNormales = normales.reduce((sum, h) => sum + getDuracionMinutosHorario(h), 0);
+  const horasTrabajadasDia = minutosNormales / 60;
+  const detalle = calcularDetalleDia(horasTrabajadasDia, fecha, c);
+
+  return {
+    horasPorDia: c.horas_por_dia,
+    horasTrabajadasDia,
+    horasExtrasDia: detalle.horasExtras,
+    esDiaLaborable: detalle.esDiaLaborable
+  };
+}
+
+export function ordenarHorariosPorEntrada(horarios) {
+  return [...(horarios || [])].sort((a, b) =>
+    String(a.hora_entrada || '').localeCompare(String(b.hora_entrada || ''))
+  );
+}
+
+/** Último turno del día (por hora de entrada) entre registros normales. */
+export function obtenerUltimoTurnoDelDia(registrosDelDia) {
+  const normales = (registrosDelDia || []).filter((h) => !isDiaSuelto(h));
+  if (normales.length === 0) return null;
+  const ordenados = ordenarHorariosPorEntrada(normales);
+  return ordenados[ordenados.length - 1];
+}
+
+/**
+ * Detalle de extras para una fila del listado.
+ * Día suelto: extras del turno. Varios turnos mismo día: extras totales solo en el último.
+ */
+export function calcularExtrasHorarioFila(horario, registrosMismoDia, contrato) {
+  const horasTurno = getDuracionMinutosHorario(horario) / 60;
+
+  if (isDiaSuelto(horario)) {
+    return {
+      horasPorDia: null,
+      horasExtras: horasTurno,
+      horasTrabajadasTurno: horasTurno,
+      esDiaSuelto: true,
+      mostrarExtras: true
+    };
+  }
+
+  const dia = calcularExtrasDiaContrato(registrosMismoDia, contrato, horario.fecha);
+  const ultimoTurno = obtenerUltimoTurnoDelDia(registrosMismoDia);
+  const esUltimoTurno = ultimoTurno && ultimoTurno.id === horario.id;
+  const variosTurnos = (registrosMismoDia || []).filter((h) => !isDiaSuelto(h)).length > 1;
+
+  return {
+    horasPorDia: dia.horasPorDia,
+    horasExtras: esUltimoTurno ? dia.horasExtrasDia : null,
+    horasTrabajadasTurno: horasTurno,
+    horasTrabajadasDia: dia.horasTrabajadasDia,
+    esDiaSuelto: false,
+    esDiaLaborable: dia.esDiaLaborable,
+    esUltimoTurno,
+    variosTurnos,
+    mostrarExtras: esUltimoTurno
+  };
+}
+
+export function resolverContratoHorario(horario, contratosMap = {}) {
+  const contratoId = parseInt(horario?.contrato_id, 10);
+  const desdeMapa = contratosMap[contratoId] || contratosMap[horario?.contrato_id];
+
+  if (desdeMapa) {
+    return {
+      horas_semanales: desdeMapa.horas_semanales,
+      horas_por_dia: desdeMapa.horas_por_dia,
+      valor_hora_extra: desdeMapa.valor_hora_extra,
+      dias_laborables: desdeMapa.dias_laborables
+    };
+  }
+
+  return {
+    horas_semanales: horario?.horas_semanales,
+    horas_por_dia: horario?.horas_por_dia,
+    valor_hora_extra: horario?.valor_hora_extra,
+    dias_laborables: horario?.dias_laborables
   };
 }
 
@@ -278,26 +393,27 @@ export function calcularHorasExtrasPeriodo(horarios, contrato, fechaInicio = nul
     }
   });
 
-  const porFecha = agruparHorariosPorFecha(horariosNormales);
-  const dias = [];
+  const diasMap = {};
 
-  Object.entries(porFecha).forEach(([fecha, registros]) => {
-    if (!estaEnRango(fecha, fechaInicio, fechaFin)) return;
+  horariosNormales.forEach((horario) => {
+    if (!estaEnRango(horario.fecha, fechaInicio, fechaFin)) return;
 
-    const totalMinutos = registros.reduce(
-      (sum, h) => sum + getDuracionMinutosHorario(h),
-      0
-    );
-    const horasTrabajadas = totalMinutos / 60;
-    const detalle = calcularDetalleDia(horasTrabajadas, fecha, c);
-
-    dias.push({
-      ...detalle,
-      registros
-    });
+    if (!diasMap[horario.fecha]) {
+      diasMap[horario.fecha] = [];
+    }
+    diasMap[horario.fecha].push(horario);
   });
 
-  dias.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const dias = Object.entries(diasMap)
+    .map(([fecha, registros]) => {
+      const minutos = registros.reduce((sum, h) => sum + getDuracionMinutosHorario(h), 0);
+      const detalle = calcularDetalleDia(minutos / 60, fecha, c);
+      return {
+        ...detalle,
+        registros
+      };
+    })
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   const diasSueltosDetalle = diasSueltos
     .filter((horario) => estaEnRango(horario.fecha, fechaInicio, fechaFin))
@@ -380,7 +496,7 @@ export function calcularResumenHorasExtrasMultiples(horarios, fechaInicio = null
   const detallesPorContrato = [];
 
   Object.values(horariosPorContrato).forEach((contratoData) => {
-    const contratoFromMap = contratosMap[contratoData.contratoId];
+    const contratoFromMap = contratosMap[parseInt(contratoData.contratoId, 10)] || contratosMap[contratoData.contratoId];
     const contrato = {
       horas_semanales: contratoFromMap?.horas_semanales ?? contratoData.horarios[0]?.horas_semanales,
       horas_por_dia: contratoFromMap?.horas_por_dia ?? contratoData.horarios[0]?.horas_por_dia,

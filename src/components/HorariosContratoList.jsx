@@ -5,7 +5,8 @@ import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import {
   calcularResumenHorasExtrasMultiples,
-  calcularHorasExtrasPeriodo,
+  calcularExtrasHorarioFila,
+  resolverContratoHorario,
   getDuracionMinutosHorario,
   formatDiasLaborables,
   agruparLiquidacionesContrato,
@@ -37,7 +38,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   const contratosMap = useMemo(() => {
     if (!contratos) return {};
     return contratos.reduce((acc, c) => {
-      acc[c.id] = c;
+      acc[parseInt(c.id, 10)] = c;
       return acc;
     }, {});
   }, [contratos]);
@@ -203,33 +204,17 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     return `${parseFloat(n.toFixed(1))}h`;
   };
 
-  const detallePorDiaContrato = useMemo(() => {
-    const grupos = {};
+  const mostrarDetalleExtras = true;
 
+  const registrosPorDiaContrato = useMemo(() => {
+    const map = {};
     horarios.forEach((horario) => {
       const key = `${horario.contrato_id}-${horario.fecha}`;
-      if (!grupos[key]) grupos[key] = [];
-      grupos[key].push(horario);
+      if (!map[key]) map[key] = [];
+      map[key].push(horario);
     });
-
-    const map = {};
-    Object.entries(grupos).forEach(([key, registros]) => {
-      const first = registros[0];
-      const contrato = contratosMap[first.contrato_id] || {
-        horas_por_dia: first.horas_por_dia,
-        horas_semanales: first.horas_semanales,
-        dias_laborables: first.dias_laborables,
-        valor_hora_extra: first.valor_hora_extra
-      };
-      const resultado = calcularHorasExtrasPeriodo(registros, contrato, first.fecha, first.fecha);
-      map[key] = {
-        horasPorDia: resultado.horasPorDia,
-        horasExtras: resultado.horasExtras
-      };
-    });
-
     return map;
-  }, [horarios, contratosMap]);
+  }, [horarios]);
 
   const formatDate = (dateString) => formatFechaEUCorta(dateString);
 
@@ -280,8 +265,13 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     <>
       <div className="space-y-2">
         {horarios.map((horario) => {
-          const detalleDia = detallePorDiaContrato[`${horario.contrato_id}-${horario.fecha}`];
+          const keyDia = `${horario.contrato_id}-${horario.fecha}`;
+          const registrosMismoDia = registrosPorDiaContrato[keyDia] || [horario];
+          const contratoRef = resolverContratoHorario(horario, contratosMap);
           const minutosTrabajados = getDuracionMinutosHorario(horario);
+          const extrasFila = mostrarDetalleExtras
+            ? calcularExtrasHorarioFila(horario, registrosMismoDia, contratoRef)
+            : null;
 
           return (
           <div
@@ -330,21 +320,47 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                   </div>
                 </div>
 
-                {detalleDia && minutosTrabajados > 0 && (
+                {extrasFila?.mostrarExtras && minutosTrabajados > 0 && (
                   <p className="mt-1.5 text-xs sm:text-sm text-gray-600">
-                    <span>
-                      Contrato:{' '}
-                      <span className="font-medium text-gray-800">
-                        {formatHorasDecimal(detalleDia.horasPorDia)}/día
+                    {extrasFila.esDiaSuelto ? (
+                      <span>
+                        <span className="font-medium text-amber-800">Día suelto</span>
+                        <span className="text-gray-400 mx-2">•</span>
+                        <span>
+                          Extras:{' '}
+                          <span className="font-medium text-orange-600">
+                            {formatHorasDecimal(extrasFila.horasExtras)}
+                          </span>
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-gray-400 mx-2">•</span>
-                    <span>
-                      Extras:{' '}
-                      <span className={`font-medium ${detalleDia.horasExtras > 0 ? 'text-orange-600' : 'text-gray-800'}`}>
-                        {formatHorasDecimal(detalleDia.horasExtras)}
-                      </span>
-                    </span>
+                    ) : (
+                      <>
+                        <span>
+                          Contrato:{' '}
+                          <span className="font-medium text-gray-800">
+                            {formatHorasDecimal(extrasFila.horasPorDia)}/día
+                          </span>
+                        </span>
+                        {extrasFila.variosTurnos && (
+                          <>
+                            <span className="text-gray-400 mx-2">•</span>
+                            <span>
+                              Total día:{' '}
+                              <span className="font-medium text-gray-800">
+                                {formatHorasDecimal(extrasFila.horasTrabajadasDia)}
+                              </span>
+                            </span>
+                          </>
+                        )}
+                        <span className="text-gray-400 mx-2">•</span>
+                        <span>
+                          Extras{extrasFila.variosTurnos ? ' del día' : ''}:{' '}
+                          <span className={`font-medium ${extrasFila.horasExtras > 0 ? 'text-orange-600' : 'text-gray-800'}`}>
+                            {formatHorasDecimal(extrasFila.horasExtras)}
+                          </span>
+                        </span>
+                      </>
+                    )}
                   </p>
                 )}
 
