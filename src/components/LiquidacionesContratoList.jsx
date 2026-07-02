@@ -6,7 +6,9 @@ import AlertModal from './AlertModal';
 import InformeCobroDetalleView from './InformeCobroDetalleView';
 import { agruparLiquidacionesContrato, contarDiasEnPeriodo, buildInformeContratosSnapshot } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
-import { generarTituloInformeCobro, exportarSnapshotContratosPDF } from '../utils/informeGuardado';
+import { generarTituloInformeCobro, buildSnapshotContratosPDF } from '../utils/informeGuardado';
+import { revokePdfPreview } from '../utils/pdfPreview';
+import PdfPreviewModal from './PdfPreviewModal';
 
 const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, contratos, onDataChange, onInformeCobroGenerado }, ref) => {
   const [liquidaciones, setLiquidaciones] = useState([]);
@@ -18,6 +20,18 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
   const [grupoInformeModal, setGrupoInformeModal] = useState(null);
   const [procesandoInforme, setProcesandoInforme] = useState(false);
   const [snapshotDetalle, setSnapshotDetalle] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null);
+
+  const abrirVistaPreviaPdf = (preview, title) => {
+    setPdfPreview({ ...preview, title });
+  };
+
+  const cerrarVistaPreviaPdf = () => {
+    setPdfPreview((prev) => {
+      revokePdfPreview(prev);
+      return null;
+    });
+  };
 
   const getPeriodoGrupo = (grupo) => ({
     inicio: grupo.periodoInicio,
@@ -50,7 +64,16 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
         setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
         return;
       }
-      await exportarSnapshotContratosPDF(snapshot);
+      const preview = await buildSnapshotContratosPDF(snapshot);
+      abrirVistaPreviaPdf(
+        preview,
+        generarTituloInformeCobro(
+          grupoInformeModal.contratoNombre,
+          grupoInformeModal.periodoInicio,
+          grupoInformeModal.periodoFin,
+          contarDiasEnPeriodo(grupoInformeModal.periodoInicio, grupoInformeModal.periodoFin)
+        )
+      );
       setGrupoInformeModal(null);
     } catch (error) {
       setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo generar el PDF.', type: 'error' });
@@ -316,7 +339,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
               Periodo {formatFechaEU(grupoInformeModal.periodoInicio)} – {formatFechaEU(grupoInformeModal.periodoFin)}
             </p>
             <p className="text-xs text-gray-500">
-              Puedes guardar el informe para consultarlo después o exportar solo el PDF sin guardarlo.
+              Puedes guardar el informe para consultarlo después o ver el PDF antes de descargarlo.
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -342,7 +365,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                 disabled={procesandoInforme}
                 className="btn-secondary w-full"
               >
-                Solo exportar PDF
+                Ver PDF
               </button>
               <button
                 type="button"
@@ -421,6 +444,13 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
         title={alertModal.title}
         message={alertModal.message}
         type={alertModal.type}
+      />
+
+      <PdfPreviewModal
+        isOpen={!!pdfPreview}
+        preview={pdfPreview}
+        onClose={cerrarVistaPreviaPdf}
+        title={pdfPreview?.title}
       />
     </>
   );

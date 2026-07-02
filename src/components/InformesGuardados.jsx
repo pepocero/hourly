@@ -6,19 +6,19 @@ import {
   Search,
   Calendar,
   Clock,
-  Euro,
-  ChevronLeft,
-  FileText
+  ChevronLeft
 } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import {
   parseInformeGuardadoDatos,
-  exportarInformeGuardadoPDF
+  buildInformeGuardadoPDF
 } from '../utils/informeGuardado';
-import { isDiaSuelto } from '../utils/contratoHoras';
-import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
+import { revokePdfPreview } from '../utils/pdfPreview';
+import PdfPreviewModal from './PdfPreviewModal';
+import InformeCobroDetalleView from './InformeCobroDetalleView';
+import { formatFechaEU, formatFechaRegistro } from '../utils/formatFecha';
 
 function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeInicialConsumido }) {
   const [informes, setInformes] = useState([]);
@@ -32,6 +32,14 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
   const [eliminando, setEliminando] = useState(false);
   const [informeToDelete, setInformeToDelete] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [pdfPreview, setPdfPreview] = useState(null);
+
+  const cerrarVistaPreviaPdf = () => {
+    setPdfPreview((prev) => {
+      revokePdfPreview(prev);
+      return null;
+    });
+  };
 
   useEffect(() => {
     loadInformes();
@@ -105,7 +113,11 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
     if (!informeSeleccionado) return;
     try {
       setExportandoPdf(true);
-      await exportarInformeGuardadoPDF(informeSeleccionado);
+      const preview = await buildInformeGuardadoPDF(informeSeleccionado);
+      setPdfPreview({
+        ...preview,
+        title: informeSeleccionado.titulo || 'Vista previa del PDF'
+      });
     } catch (error) {
       setAlertModal({
         isOpen: true,
@@ -149,15 +161,6 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
     }
   };
 
-  const formatTime = (time) => (time ? time.substring(0, 5) : '-');
-
-  const formatDuration = (minutes) => {
-    if (!minutes) return '-';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
-  };
-
   const datosDetalle = informeSeleccionado
     ? parseInformeGuardadoDatos(informeSeleccionado)
     : null;
@@ -174,9 +177,6 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
   }
 
   if (informeSeleccionado && datosDetalle) {
-    const subtotales = Object.values(datosDetalle.subtotalesPorContrato || {});
-    const resumen = datosDetalle.resumen || {};
-
     return (
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -196,7 +196,7 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
               className="btn-primary flex items-center gap-2 text-sm"
             >
               <FileDown className="h-4 w-4" />
-              {exportandoPdf ? 'Generando PDF...' : 'Exportar PDF'}
+              {exportandoPdf ? 'Generando PDF...' : 'Ver PDF'}
             </button>
             <button
               type="button"
@@ -210,113 +210,16 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
         </div>
 
         <div className="card">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <FileText className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-                {informeSeleccionado.titulo}
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">
-                {formatFechaEU(informeSeleccionado.fecha_inicio)} – {formatFechaEU(informeSeleccionado.fecha_fin)}
-                {' • '}
-                {informeSeleccionado.num_semanas === 1
-                  ? '1 semana'
-                  : `${informeSeleccionado.num_semanas} semanas`}
-                {informeSeleccionado.liquidacion_agrupada ? ' • Liquidación agrupada' : ''}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Guardado: {formatFechaRegistro(informeSeleccionado.created_at)}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className="bg-blue-50 rounded-lg p-3">
-              <p className="text-xs text-blue-700">Total horas</p>
-              <p className="text-lg font-bold text-blue-900">{(resumen.totalHoras || 0).toFixed(1)}h</p>
-            </div>
-            <div className="bg-amber-50 rounded-lg p-3">
-              <p className="text-xs text-amber-700">Horas extras</p>
-              <p className="text-lg font-bold text-amber-900">{(resumen.totalHorasExtras || 0).toFixed(2)}h</p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-3">
-              <p className="text-xs text-green-700">Importe extras</p>
-              <p className="text-lg font-bold text-green-900">{formatEuro(resumen.totalGanancias || 0)}</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-600">Registros</p>
-              <p className="text-lg font-bold text-gray-900">{resumen.totalRegistros || 0}</p>
-            </div>
-          </div>
-
-          {subtotales.map((subtotal) => (
-            <div key={subtotal.nombre} className="mb-6 last:mb-0">
-              <h4 className="text-sm font-semibold text-gray-900 mb-2">{subtotal.nombre}</h4>
-              {(subtotal.dias || []).length > 0 && (
-                <div className="mb-3 overflow-x-auto">
-                  <table className="min-w-full text-xs divide-y divide-gray-100 mb-2">
-                    <thead>
-                      <tr className="text-gray-500">
-                        <th className="text-left py-1 pr-2">Día</th>
-                        <th className="text-right py-1 px-2">Trab.</th>
-                        <th className="text-right py-1 px-2">Contrato</th>
-                        <th className="text-right py-1 pl-2">Extras</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subtotal.dias.map((dia) => (
-                        <tr key={dia.fecha}>
-                          <td className="py-1 pr-2">{formatFechaEU(dia.fecha)}</td>
-                          <td className="text-right py-1 px-2">{dia.horasTrabajadas.toFixed(2)}h</td>
-                          <td className="text-right py-1 px-2">{dia.horasContrato.toFixed(2)}h</td>
-                          <td className="text-right py-1 pl-2 text-orange-600">{dia.horasExtras.toFixed(2)}h</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entrada</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Salida</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duración</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Comentario</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {(subtotal.registros || []).map((h) => (
-                      <tr
-                        key={h.id}
-                        className={isDiaSuelto(h) ? 'bg-amber-50' : ''}
-                      >
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {formatFechaEU(h.fecha)}
-                          {isDiaSuelto(h) && <span className="text-amber-700 ml-1">*</span>}
-                        </td>
-                        <td className="px-3 py-2">{formatTime(h.hora_entrada)}</td>
-                        <td className="px-3 py-2">{formatTime(h.hora_salida)}</td>
-                        <td className="px-3 py-2">{formatDuration(h.duracion_minutos)}</td>
-                        <td className="px-3 py-2 text-gray-600">{h.descripcion || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Total: {(subtotal.totalHoras || 0).toFixed(2)}h
-                {' • '}
-                Extras: {(subtotal.horasExtras || 0).toFixed(2)}h
-                {' • '}
-                {formatEuro(subtotal.totalExtras || 0)}
-              </p>
-            </div>
-          ))}
+          <InformeCobroDetalleView
+            datosDetalle={datosDetalle}
+            titulo={informeSeleccionado.titulo}
+            subtitulo={`${formatFechaEU(informeSeleccionado.fecha_inicio)} – ${formatFechaEU(informeSeleccionado.fecha_fin)} • ${
+              informeSeleccionado.num_semanas === 1
+                ? '1 semana'
+                : `${informeSeleccionado.num_semanas} semanas`
+            }${informeSeleccionado.liquidacion_agrupada ? ' • Liquidación agrupada' : ''}`}
+            metaLine={`Guardado: ${formatFechaRegistro(informeSeleccionado.created_at)}`}
+          />
         </div>
 
         <ConfirmModal
@@ -337,6 +240,13 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
           message={alertModal.message}
           type={alertModal.type}
         />
+
+        <PdfPreviewModal
+          isOpen={!!pdfPreview}
+          preview={pdfPreview}
+          onClose={cerrarVistaPreviaPdf}
+          title={pdfPreview?.title}
+        />
       </div>
     );
   }
@@ -345,7 +255,7 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
     <div className="space-y-4">
       <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
         <p className="text-sm text-purple-900">
-          Consulta informes de cobro guardados. Puedes filtrar por fechas y exportar a PDF cuando lo necesites.
+          Consulta informes de cobro guardados. Puedes filtrar por fechas y ver el PDF antes de descargarlo.
         </p>
       </div>
 
@@ -449,6 +359,13 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
         title={alertModal.title}
         message={alertModal.message}
         type={alertModal.type}
+      />
+
+      <PdfPreviewModal
+        isOpen={!!pdfPreview}
+        preview={pdfPreview}
+        onClose={cerrarVistaPreviaPdf}
+        title={pdfPreview?.title}
       />
     </div>
   );

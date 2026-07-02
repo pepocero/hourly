@@ -1,7 +1,7 @@
 // Servicio para generar PDFs de informes
 import jsPDF from 'jspdf';
 import { formatFechaEU } from '../utils/formatFecha';
-import { isDiaSuelto } from '../utils/contratoHoras';
+import { buildFilasTablaInformeContrato } from '../utils/contratoHoras';
 
 class PDFService {
   constructor() {
@@ -221,17 +221,71 @@ class PDFService {
     this.doc.setTextColor(0, 0, 0);
   }
 
+  drawPlainTableHeader(y, headers, colWidths) {
+    let xPos = 20;
+    this.doc.setFontSize(8);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setTextColor(80, 80, 80);
+    headers.forEach((header, index) => {
+      this.doc.text(header, xPos, y);
+      xPos += colWidths[index];
+    });
+    const lineY = y + 2;
+    this.doc.setDrawColor(200, 200, 200);
+    this.doc.line(20, lineY, 190, lineY);
+    this.doc.setTextColor(0, 0, 0);
+    return lineY + 5;
+  }
+
+  drawPlainTableRow(y, cells, colWidths, options = {}) {
+    const { highlightColIndex = -1, highlightColor = [234, 88, 12] } = options;
+    let xPos = 20;
+    this.doc.setFontSize(8);
+    this.doc.setFont('helvetica', 'normal');
+
+    cells.forEach((cell, index) => {
+      if (index === highlightColIndex) {
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.setTextColor(...highlightColor);
+      }
+      this.doc.text(String(cell), xPos, y);
+      if (index === highlightColIndex) {
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(0, 0, 0);
+      }
+      xPos += colWidths[index];
+    });
+
+    return y + 5;
+  }
+
   addContratosSummary(resumen) {
     if (!this.doc) return;
 
-    const metrics = [
-      { label: 'Total Horas', value: `${resumen.totalHoras.toFixed(1)}h`, color: [59, 130, 246] },
-      { label: 'Horas Extras', value: `${(resumen.totalHorasExtras || 0).toFixed(2)}h`, color: [249, 115, 22] },
-      { label: 'Registros', value: resumen.totalRegistros.toString(), color: [168, 85, 247] },
-      { label: 'Importe Extras', value: `€${resumen.totalGanancias.toFixed(2)}`, color: [34, 197, 94] }
+    let currentY = this.headerEndY || 82;
+    const extrasColor = [234, 88, 12];
+    const summaryLines = [
+      { label: 'Total horas', value: `${resumen.totalHoras.toFixed(1)}h`, highlight: false },
+      { label: 'Horas extras', value: `${(resumen.totalHorasExtras || 0).toFixed(2)}h`, highlight: true },
+      { label: 'Importe extras', value: `€${resumen.totalGanancias.toFixed(2)}`, highlight: false },
+      { label: 'Registros', value: String(resumen.totalRegistros), highlight: false }
     ];
 
-    this.summaryEndY = this.drawMetricCards(this.headerEndY || 82, metrics);
+    this.doc.setFontSize(10);
+    summaryLines.forEach(({ label, value, highlight }) => {
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setTextColor(0, 0, 0);
+      this.doc.text(label, 20, currentY);
+      if (highlight) {
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.setTextColor(...extrasColor);
+      }
+      this.doc.text(value, 52, currentY);
+      this.doc.setTextColor(0, 0, 0);
+      currentY += 6;
+    });
+
+    this.summaryEndY = currentY + 6;
   }
 
   addContratosTable(subtotalesPorContrato) {
@@ -239,61 +293,29 @@ class PDFService {
 
     const yStart = this.summaryEndY || 118;
     let currentY = yStart;
-
-    this.doc.setFontSize(14);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.text('Detalle de Horarios de Contrato', 20, currentY);
-    currentY += 15;
-
-    this.doc.setFontSize(10);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFillColor(139, 92, 246);
-    this.doc.rect(20, currentY - 5, 170, 8, 'F');
-    this.doc.setTextColor(255, 255, 255);
-
-    const headers = ['Fecha', 'Ent.', 'Sal.', 'Duración', 'Comentario'];
-    const colWidths = [28, 22, 22, 28, 70];
-    let xPos = 20;
-
-    headers.forEach((header, index) => {
-      this.doc.text(header, xPos + 2, currentY);
-      xPos += colWidths[index];
-    });
-
-    currentY += 10;
-    this.doc.setTextColor(0, 0, 0);
-
-    this.doc.setFontSize(8);
-    this.doc.setFont('helvetica', 'normal');
-
+    const extrasColor = [234, 88, 12];
     let tieneDiasSueltos = false;
 
     Object.entries(subtotalesPorContrato).forEach(([, subtotal]) => {
-      if (subtotal.dias?.length > 0) {
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setFontSize(9);
-        this.doc.text(`Resumen diario — ${subtotal.nombre}`, 20, currentY);
-        currentY += 6;
-
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setFontSize(7);
-        subtotal.dias.forEach((dia) => {
-          if (currentY > 250) {
-            this.doc.addPage();
-            currentY = 20;
-          }
-          this.doc.text(
-            `${this.formatDate(dia.fecha)}: ${dia.horasTrabajadas.toFixed(2)}h trab. | ${dia.horasContrato.toFixed(2)}h contrato | ${dia.horasExtras.toFixed(2)}h extras`,
-            22,
-            currentY
-          );
-          currentY += 5;
-        });
-        currentY += 4;
+      if (currentY > 240) {
+        this.doc.addPage();
+        currentY = 20;
       }
 
-      subtotal.registros.forEach((horario) => {
-        if (isDiaSuelto(horario)) {
+      this.doc.setFontSize(11);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text(subtotal.nombre, 20, currentY);
+      currentY += 8;
+
+      const headers = ['Día', 'Entrada', 'Salida', 'Trab.', 'Contrato', 'Extras', 'Comentario'];
+      const colWidths = [26, 18, 18, 16, 18, 16, 58];
+      currentY = this.drawPlainTableHeader(currentY, headers, colWidths);
+
+      const filas = buildFilasTablaInformeContrato(subtotal);
+      this.doc.setFont('helvetica', 'normal');
+
+      filas.forEach((fila) => {
+        if (fila.esDiaSuelto) {
           tieneDiasSueltos = true;
         }
         if (currentY > 250) {
@@ -301,83 +323,56 @@ class PDFService {
           currentY = 20;
         }
 
-        const esSuelto = isDiaSuelto(horario);
-        if (esSuelto) {
-          this.doc.setFillColor(254, 243, 199);
-          this.doc.rect(20, currentY - 4, 170, 6, 'F');
-        }
+        const fechaLabel = fila.esDiaSuelto
+          ? `${this.formatDate(fila.fecha)} *`
+          : this.formatDate(fila.fecha);
 
-        xPos = 20;
-        const fechaLabel = esSuelto
-          ? `${this.formatDate(horario.fecha)} *`
-          : this.formatDate(horario.fecha);
-        const rowData = [
-          fechaLabel,
-          this.formatTime(horario.hora_entrada),
-          this.formatTime(horario.hora_salida),
-          this.formatDuration(horario.duracion_minutos),
-          this.truncateText(horario.descripcion || '-', 38)
-        ];
-
-        rowData.forEach((data, index) => {
-          this.doc.text(String(data), xPos + 2, currentY);
-          xPos += colWidths[index];
-        });
-
-        currentY += 6;
+        currentY = this.drawPlainTableRow(
+          currentY,
+          [
+            fechaLabel,
+            this.formatTime(fila.horaEntrada),
+            this.formatTime(fila.horaSalida),
+            fila.horasTurno,
+            fila.horasContrato,
+            fila.horasExtras,
+            this.truncateText(fila.comentario || '-', 32)
+          ],
+          colWidths,
+          { highlightColIndex: fila.destacarExtras ? 5 : -1, highlightColor: extrasColor }
+        );
       });
 
-      if (currentY > 250) {
+      currentY += 4;
+      this.doc.setFontSize(9);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setTextColor(0, 0, 0);
+
+      const totalHorasLabel = `Total: ${(subtotal.totalHoras || 0).toFixed(2)}h • Extras: `;
+      this.doc.text(totalHorasLabel, 20, currentY);
+      let extrasX = 20 + this.doc.getTextWidth(totalHorasLabel);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setTextColor(...extrasColor);
+      const extrasValue = `${(subtotal.horasExtras || 0).toFixed(2)}h`;
+      this.doc.text(extrasValue, extrasX, currentY);
+      extrasX += this.doc.getTextWidth(extrasValue);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setTextColor(0, 0, 0);
+      this.doc.text(` • €${(subtotal.totalExtras || 0).toFixed(2)}`, extrasX, currentY);
+
+      currentY += 12;
+    });
+
+    if (tieneDiasSueltos) {
+      if (currentY > 265) {
         this.doc.addPage();
         currentY = 20;
       }
-
-      this.doc.setFont('helvetica', 'bold');
-      this.doc.setFillColor(240, 240, 240);
-      this.doc.rect(20, currentY - 3, 170, 6, 'F');
-
-      const extrasLabel = `${(subtotal.horasExtras || 0).toFixed(2)}h extras`;
-      const importeLabel = `€${(subtotal.totalExtras || 0).toFixed(2)}`;
-      this.doc.text(`Subtotal ${subtotal.nombre}: ${extrasLabel}`, 25, currentY);
-      this.doc.text(importeLabel, 165, currentY);
-
-      currentY += 10;
-      this.doc.setFont('helvetica', 'normal');
-    });
-
-    if (currentY > 250) {
-      this.doc.addPage();
-      currentY = 20;
-    }
-
-    const totalExtras = Object.values(subtotalesPorContrato).reduce(
-      (sum, subtotal) => sum + (subtotal.totalExtras || 0),
-      0
-    );
-    const totalHorasExtras = Object.values(subtotalesPorContrato).reduce(
-      (sum, subtotal) => sum + (subtotal.horasExtras || 0),
-      0
-    );
-
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setFillColor(139, 92, 246);
-    const totalRowHeight = 14;
-    this.doc.rect(20, currentY - 5, 170, totalRowHeight, 'F');
-    this.doc.setTextColor(255, 255, 255);
-
-    this.doc.setFontSize(10);
-    this.doc.text(`TOTAL (${totalHorasExtras.toFixed(2)}h extras):`, 25, currentY + 2);
-
-    this.doc.setFontSize(18);
-    this.doc.text(`€${totalExtras.toFixed(2)}`, 185, currentY + 4, { align: 'right' });
-
-    currentY += totalRowHeight + 2;
-    this.doc.setTextColor(0, 0, 0);
-
-    if (tieneDiasSueltos) {
       this.doc.setFontSize(7);
       this.doc.setFont('helvetica', 'italic');
-      this.doc.text('* Día suelto: jornada fuera del contrato habitual, liquidada íntegramente como extras.', 20, currentY + 4);
+      this.doc.setTextColor(100, 100, 100);
+      this.doc.text('* Día suelto: jornada fuera del contrato habitual, liquidada íntegramente como extras.', 20, currentY);
+      this.doc.setTextColor(0, 0, 0);
     }
   }
 
@@ -399,6 +394,64 @@ class PDFService {
   }
 
   generatePDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorProyecto, resumen) {
+    const result = this.buildPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorProyecto, resumen);
+    this.downloadPdf(result);
+  }
+
+  generateContratosPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorContrato, resumen) {
+    const result = this.buildContratosPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorContrato, resumen);
+    this.downloadPdf(result);
+  }
+
+  generateLiquidacionesPDF(title, subtitle, fechaInicio, fechaFin, grupos, resumen) {
+    const result = this.buildLiquidacionesPDF(title, subtitle, fechaInicio, fechaFin, grupos, resumen);
+    this.downloadPdf(result);
+  }
+
+  // Funciones auxiliares
+  formatDate(dateString) {
+    return formatFechaEU(dateString);
+  }
+
+  truncateText(text, maxLen) {
+    const value = String(text || '');
+    if (value.length <= maxLen) return value;
+    return `${value.substring(0, maxLen)}...`;
+  }
+
+  formatTime(timeString) {
+    if (!timeString) return '-';
+    return String(timeString).substring(0, 5);
+  }
+
+  formatDuration(minutes) {
+    if (!minutes) return '-';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  }
+
+  finalizeDocument(filename) {
+    const blob = this.doc.output('blob');
+    return {
+      blob,
+      filename,
+      url: URL.createObjectURL(blob)
+    };
+  }
+
+  downloadPdf({ blob, filename }) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  buildPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorProyecto, resumen) {
     this.createDocument();
     this.addHeader(title, subtitle, fechaInicio, fechaFin);
     this.addSummary(resumen);
@@ -406,10 +459,10 @@ class PDFService {
     this.addFooter();
 
     const fechaActual = new Date().toISOString().split('T')[0];
-    this.doc.save(`informe-hourly-${fechaActual}.pdf`);
+    return this.finalizeDocument(`informe-hourly-${fechaActual}.pdf`);
   }
 
-  generateContratosPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorContrato, resumen) {
+  buildContratosPDF(title, subtitle, fechaInicio, fechaFin, subtotalesPorContrato, resumen) {
     this.createDocument();
     this.addContratosHeader(title, subtitle, fechaInicio, fechaFin);
     this.addContratosSummary(resumen);
@@ -417,10 +470,10 @@ class PDFService {
     this.addFooter();
 
     const fechaActual = new Date().toISOString().split('T')[0];
-    this.doc.save(`informe-contratos-hourly-${fechaActual}.pdf`);
+    return this.finalizeDocument(`informe-contratos-hourly-${fechaActual}.pdf`);
   }
 
-  generateLiquidacionesPDF(title, subtitle, fechaInicio, fechaFin, grupos, resumen) {
+  buildLiquidacionesPDF(title, subtitle, fechaInicio, fechaFin, grupos, resumen) {
     this.createDocument();
     this.addHeader(title, subtitle, fechaInicio, fechaFin);
 
@@ -497,30 +550,7 @@ class PDFService {
     this.addFooter();
 
     const fechaActual = new Date().toISOString().split('T')[0];
-    this.doc.save(`informe-liquidaciones-hourly-${fechaActual}.pdf`);
-  }
-
-  // Funciones auxiliares
-  formatDate(dateString) {
-    return formatFechaEU(dateString);
-  }
-
-  truncateText(text, maxLen) {
-    const value = String(text || '');
-    if (value.length <= maxLen) return value;
-    return `${value.substring(0, maxLen)}...`;
-  }
-
-  formatTime(timeString) {
-    if (!timeString) return '-';
-    return String(timeString).substring(0, 5);
-  }
-
-  formatDuration(minutes) {
-    if (!minutes) return '-';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+    return this.finalizeDocument(`informe-liquidaciones-hourly-${fechaActual}.pdf`);
   }
 }
 

@@ -208,17 +208,19 @@ export function calcularDetalleDia(horasTrabajadasDia, fecha, contrato) {
   const horasTrabajadas = parseFloat(horasTrabajadasDia) || 0;
   const laborable = isDiaLaborable(fecha, c.dias_laborables);
 
-  if (!laborable) {
+  if (horasTrabajadas <= 0) {
     return {
       fecha,
-      horasTrabajadas,
+      horasTrabajadas: 0,
       horasContrato: 0,
-      horasExtras: horasTrabajadas,
+      horasExtras: 0,
       horasNormales: 0,
-      esDiaLaborable: false
+      esDiaLaborable: laborable
     };
   }
 
+  // Si hay trabajo registrado, descontar horas contrato/día aunque el día no esté en
+  // dias_laborables (p. ej. domingo cuando el día libre semanal es otro).
   const horasContrato = Math.min(horasTrabajadas, c.horas_por_dia);
   const horasExtras = Math.max(0, horasTrabajadas - c.horas_por_dia);
 
@@ -228,7 +230,7 @@ export function calcularDetalleDia(horasTrabajadasDia, fecha, contrato) {
     horasContrato,
     horasExtras,
     horasNormales: horasContrato,
-    esDiaLaborable: true
+    esDiaLaborable: laborable
   };
 }
 
@@ -322,6 +324,68 @@ export function calcularExtrasHorarioFila(horario, registrosMismoDia, contrato) 
     variosTurnos,
     mostrarExtras: esUltimoTurno
   };
+}
+
+export function getContratoRefDesdeSubtotalInforme(subtotal) {
+  return {
+    horas_semanales: subtotal?.horasSemanales ?? subtotal?.horas_semanales,
+    horas_por_dia: subtotal?.horasPorDia ?? subtotal?.horas_por_dia,
+    valor_hora_extra: subtotal?.valorHoraExtra ?? subtotal?.valor_hora_extra,
+    dias_laborables: subtotal?.diasLaborables ?? subtotal?.dias_laborables
+  };
+}
+
+export function formatHorasInformeTabla(horas) {
+  if (horas === null || horas === undefined || horas === '') return '';
+  const n = parseFloat(horas);
+  if (Number.isNaN(n)) return '';
+  return `${n.toFixed(2)}h`;
+}
+
+/** Filas unificadas: un turno por fila con Día, Entrada, Salida, Trab., Contrato, Extras, Comentario. */
+export function buildFilasTablaInformeContrato(subtotal) {
+  if (!subtotal) return [];
+
+  const contratoRef = getContratoRefDesdeSubtotalInforme(subtotal);
+  const registros = subtotal.registros || [];
+
+  return registros.map((horario) => {
+    const registrosMismoDia = registros.filter((h) => h.fecha === horario.fecha);
+    const extrasFila = calcularExtrasHorarioFila(horario, registrosMismoDia, contratoRef);
+    const horasTurno = getDuracionMinutosHorario(horario) / 60;
+
+    let horasContratoCelda = '';
+    let horasExtrasCelda = '';
+
+    if (extrasFila.mostrarExtras) {
+      if (extrasFila.esDiaSuelto) {
+        horasContratoCelda = '0.00h';
+        horasExtrasCelda = formatHorasInformeTabla(extrasFila.horasExtras);
+      } else {
+        const horasTrabajadasDia = calcularExtrasDiaContrato(
+          registrosMismoDia,
+          contratoRef,
+          horario.fecha
+        ).horasTrabajadasDia;
+        const detalle = calcularDetalleDia(horasTrabajadasDia, horario.fecha, contratoRef);
+        horasContratoCelda = formatHorasInformeTabla(detalle.horasContrato);
+        horasExtrasCelda = formatHorasInformeTabla(detalle.horasExtras);
+      }
+    }
+
+    return {
+      id: horario.id,
+      fecha: horario.fecha,
+      horaEntrada: horario.hora_entrada,
+      horaSalida: horario.hora_salida,
+      horasTurno: formatHorasInformeTabla(horasTurno),
+      horasContrato: horasContratoCelda,
+      horasExtras: horasExtrasCelda,
+      comentario: horario.descripcion || '',
+      esDiaSuelto: isDiaSuelto(horario),
+      destacarExtras: !!(extrasFila.mostrarExtras && parseFloat(extrasFila.horasExtras) > 0)
+    };
+  });
 }
 
 export function resolverContratoHorario(horario, contratosMap = {}) {
@@ -710,6 +774,60 @@ export function buildInformeContratosSnapshot(horariosContrato, fechaInicio, fec
       promedioMinutos: horariosContrato?.length
         ? totalGeneralMinutos / horariosContrato.length
         : 0
+    }
+  };
+}
+
+/** Recalcula subtotales y resumen con la lógica actual (p. ej. al abrir informes guardados). */
+export function refrescarDatosInformeContratos(datosDetalle) {
+  if (!datosDetalle || datosDetalle.tipo !== 'contratos') {
+    return datosDetalle;
+  }
+
+  const fechaInicio = datosDetalle.fechaInicio;
+  const fechaFin = datosDetalle.fechaFin;
+  const horarios = datosDetalle.horariosContrato?.length
+    ? datosDetalle.horariosContrato
+    : Object.values(datosDetalle.subtotalesPorContrato || {}).flatMap((s) => s.registros || []);
+
+  if (!horarios.length) {
+    return datosDetalle;
+  }
+
+  const subtotalesPorContrato = calcularSubtotalesPorContratoInforme(
+    horarios,
+    fechaInicio,
+    fechaFin
+  );
+
+  const totalGeneralHoras = horarios.reduce(
+    (sum, h) => sum + getDuracionMinutosHorario(h) / 60,
+    0
+  );
+  const totalGeneralMinutos = horarios.reduce(
+    (sum, h) => sum + getDuracionMinutosHorario(h),
+    0
+  );
+  const totalHorasExtras = Object.values(subtotalesPorContrato).reduce(
+    (sum, s) => sum + (s.horasExtras || 0),
+    0
+  );
+  const totalGanancias = Object.values(subtotalesPorContrato).reduce(
+    (sum, s) => sum + (s.totalExtras || 0),
+    0
+  );
+
+  return {
+    ...datosDetalle,
+    horariosContrato: horarios,
+    subtotalesPorContrato,
+    resumen: {
+      ...datosDetalle.resumen,
+      totalHoras: totalGeneralHoras,
+      totalHorasExtras,
+      totalGanancias,
+      totalRegistros: horarios.length,
+      promedioMinutos: horarios.length ? totalGeneralMinutos / horarios.length : 0
     }
   };
 }

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil, Archive, Save, Receipt, Eye, X } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPeriodo, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo, contarDiasEnPeriodo, contarDiasLaborablesEnRango, getDuracionMinutosHorario, calcularExtrasHorarioFila } from '../utils/contratoHoras';
+import { calcularHorasExtrasPeriodo, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo, contarDiasEnPeriodo, contarDiasLaborablesEnRango, getDuracionMinutosHorario, buildFilasTablaInformeContrato } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
-import { generarTituloInformeCobro, exportarSnapshotContratosPDF } from '../utils/informeGuardado';
+import { generarTituloInformeCobro, buildSnapshotContratosPDF } from '../utils/informeGuardado';
+import { revokePdfPreview } from '../utils/pdfPreview';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HorarioContratoForm from './HorarioContratoForm';
 import InformesGuardados from './InformesGuardados';
 import InformeCobroDetalleView from './InformeCobroDetalleView';
+import PdfPreviewModal from './PdfPreviewModal';
 
 function Informes({ navState = null, onNavConsumed }) {
   const [seccionPrincipal, setSeccionPrincipal] = useState('generar');
@@ -41,6 +43,18 @@ function Informes({ navState = null, onNavConsumed }) {
   const [grupoInformeCobroModal, setGrupoInformeCobroModal] = useState(null);
   const [procesandoInformeCobro, setProcesandoInformeCobro] = useState(false);
   const [snapshotDetalleCobro, setSnapshotDetalleCobro] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null);
+
+  const abrirVistaPreviaPdf = (preview, title) => {
+    setPdfPreview({ ...preview, title });
+  };
+
+  const cerrarVistaPreviaPdf = () => {
+    setPdfPreview((prev) => {
+      revokePdfPreview(prev);
+      return null;
+    });
+  };
 
   useEffect(() => {
     if (!navState) return;
@@ -171,24 +185,6 @@ function Informes({ navState = null, onNavConsumed }) {
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
   };
-
-  const formatHorasDecimal = (horas) => {
-    const n = parseFloat(horas);
-    if (Number.isNaN(n) || n <= 0) return '0h';
-    return `${parseFloat(n.toFixed(1))}h`;
-  };
-
-  const formatMinutosDecimal = (minutos) => {
-    if (!minutos || minutos <= 0) return '0h';
-    return formatHorasDecimal(minutos / 60);
-  };
-
-  const getContratoRefDesdeSubtotal = (subtotal) => ({
-    horas_semanales: subtotal.horasSemanales,
-    horas_por_dia: subtotal.horasPorDia,
-    valor_hora_extra: subtotal.valorHoraExtra,
-    dias_laborables: subtotal.diasLaborables
-  });
 
   // Calcular subtotales por proyecto
   const calcularSubtotalesPorProyecto = () => {
@@ -429,9 +425,10 @@ function Informes({ navState = null, onNavConsumed }) {
 
       try {
         const { default: pdfService } = await import('../services/pdfService');
+        let preview = null;
 
         if (tipoDatos === 'proyectos') {
-          pdfService.generatePDF(
+          preview = pdfService.buildPDF(
             title,
             subtitle,
             fechaInicio,
@@ -454,7 +451,7 @@ function Informes({ navState = null, onNavConsumed }) {
             : listaContratos
                 .map((c) => `Contrato de ${c.horasSemanales} horas por semana (${c.nombre}).`)
                 .join('\n');
-          pdfService.generateContratosPDF(
+          preview = pdfService.buildContratosPDF(
             contratosTitle,
             contratosSubtitle,
             fechaInicio,
@@ -469,7 +466,7 @@ function Informes({ navState = null, onNavConsumed }) {
             }
           );
         } else {
-          pdfService.generateLiquidacionesPDF(
+          preview = pdfService.buildLiquidacionesPDF(
             title,
             subtitle,
             fechaInicio,
@@ -483,6 +480,8 @@ function Informes({ navState = null, onNavConsumed }) {
             }
           );
         }
+
+        abrirVistaPreviaPdf(preview, title);
       } catch (error) {
         console.error('Error exportando PDF:', error);
         setAlertModal({
@@ -497,9 +496,9 @@ function Informes({ navState = null, onNavConsumed }) {
 
   const exportModalTitle = exportModal.type === 'pdf' ? 'Exportar informe PDF' : 'Exportar horas a CSV';
   const exportModalMessage = exportModal.type === 'pdf'
-    ? 'Se generará un documento PDF con los datos del informe actual.'
+    ? 'Se abrirá una vista previa del PDF. Podrás descargarlo cuando quieras.'
     : 'Se descargará un archivo CSV con las horas del periodo seleccionado.';
-  const exportConfirmText = exportModal.type === 'pdf' ? 'Generar PDF' : 'Descargar CSV';
+  const exportConfirmText = exportModal.type === 'pdf' ? 'Ver PDF' : 'Descargar CSV';
 
   const tieneDatosParaInforme = (
     (tipoDatos === 'proyectos' && horas.length > 0) ||
@@ -673,7 +672,16 @@ function Informes({ navState = null, onNavConsumed }) {
         setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
         return;
       }
-      await exportarSnapshotContratosPDF(snapshot);
+      const preview = await buildSnapshotContratosPDF(snapshot);
+      abrirVistaPreviaPdf(
+        preview,
+        generarTituloInformeCobro(
+          grupoInformeCobroModal.contratoNombre,
+          grupoInformeCobroModal.periodoInicio,
+          grupoInformeCobroModal.periodoFin,
+          getNumDiasGrupo(grupoInformeCobroModal)
+        )
+      );
       setGrupoInformeCobroModal(null);
     } catch (error) {
       setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo generar el PDF.', type: 'error' });
@@ -1572,63 +1580,46 @@ function Informes({ navState = null, onNavConsumed }) {
                   </div>
                 </div>
 
-                {/* Lista de horarios */}
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-gray-600 mb-2">Horarios Registrados ({subtotal.registros.length})</p>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {subtotal.registros.map((horario) => {
-                      const registrosMismoDia = subtotal.registros.filter((h) => h.fecha === horario.fecha);
-                      const contratoRef = getContratoRefDesdeSubtotal(subtotal);
-                      const minutosTrabajados = getDuracionMinutosHorario(horario);
-                      const extrasFila = calcularExtrasHorarioFila(horario, registrosMismoDia, contratoRef);
-
-                      return (
-                      <div
-                        key={horario.id}
-                        className={`flex justify-between items-start gap-2 py-2 px-3 rounded border text-sm ${
-                          isDiaSuelto(horario)
-                            ? 'bg-amber-100 border-amber-300 border-l-4 border-l-amber-500'
-                            : 'bg-white border-gray-200'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{formatDate(horario.fecha)}</span>
-                            {isDiaSuelto(horario) && (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                                Día suelto
-                              </span>
-                            )}
-                            <span className="text-gray-400">•</span>
-                            <span>{formatTime(horario.hora_entrada)} - {formatTime(horario.hora_salida)}</span>
-                          </div>
-                          {horario.descripcion && (
-                            <p className="text-xs text-gray-500 mt-1 truncate">{horario.descripcion}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1 ml-2 shrink-0 text-right">
-                          <div className="flex items-center gap-2">
-                            <span className="text-primary-600 font-medium">
-                              {formatMinutosDecimal(minutosTrabajados)}
-                            </span>
-                            {extrasFila.mostrarExtras && extrasFila.variosTurnos && !extrasFila.esDiaSuelto && (
-                              <>
-                                <span className="text-gray-400">•</span>
-                                <span className="text-xs font-medium text-gray-600">
-                                  Total día: {formatHorasDecimal(extrasFila.horasTrabajadasDia)}
-                                </span>
-                              </>
-                            )}
-                            {extrasFila.mostrarExtras && !extrasFila.variosTurnos && (
-                              <span className={`text-xs font-medium ${extrasFila.horasExtras > 0 ? 'text-orange-600' : 'text-gray-500'}`}>
-                                Extras: {formatHorasDecimal(extrasFila.horasExtras)}
-                              </span>
-                            )}
-                            {isDiaSuelto(horario) && (
-                              <>
+                {/* Tabla unificada de horarios */}
+                <div className="mt-3 overflow-x-auto max-h-96 overflow-y-auto">
+                  <table className="min-w-full text-xs sm:text-sm divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Día</th>
+                        <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Entrada</th>
+                        <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Salida</th>
+                        <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500">Trab.</th>
+                        <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500">Contrato</th>
+                        <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500">Extras</th>
+                        <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Comentario</th>
+                        <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500 w-16" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {buildFilasTablaInformeContrato(subtotal).map((fila) => (
+                        <tr
+                          key={fila.id}
+                          className={fila.esDiaSuelto ? 'bg-amber-50' : ''}
+                        >
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap">
+                            {formatDate(fila.fecha)}
+                            {fila.esDiaSuelto && <span className="text-amber-700 ml-1">*</span>}
+                          </td>
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap">{formatTime(fila.horaEntrada)}</td>
+                          <td className="px-2 sm:px-3 py-2 whitespace-nowrap">{formatTime(fila.horaSalida)}</td>
+                          <td className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">{fila.horasTurno}</td>
+                          <td className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">{fila.horasContrato}</td>
+                          <td className={`px-2 sm:px-3 py-2 text-right whitespace-nowrap font-medium ${fila.destacarExtras ? 'text-orange-600' : ''}`}>
+                            {fila.horasExtras}
+                          </td>
+                          <td className="px-2 sm:px-3 py-2 text-gray-600">{fila.comentario || '-'}</td>
+                          <td className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">
+                            {fila.esDiaSuelto && (
+                              <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const horario = subtotal.registros.find((h) => h.id === fila.id);
                                     setDiaSueltoEditando(horario);
                                     setShowDiaSueltoForm(true);
                                   }}
@@ -1639,25 +1630,22 @@ function Informes({ navState = null, onNavConsumed }) {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setHorarioDiaSueltoToDelete(horario)}
+                                  onClick={() => {
+                                    const horario = subtotal.registros.find((h) => h.id === fila.id);
+                                    setHorarioDiaSueltoToDelete(horario);
+                                  }}
                                   className="p-1 text-gray-500 hover:text-red-600"
                                   title="Eliminar día suelto"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
-                              </>
+                              </div>
                             )}
-                          </div>
-                          {extrasFila.mostrarExtras && extrasFila.variosTurnos && !extrasFila.esDiaSuelto && (
-                            <span className={`text-xs font-medium ${extrasFila.horasExtras > 0 ? 'text-orange-600' : 'text-gray-500'}`}>
-                              Extras del día: {formatHorasDecimal(extrasFila.horasExtras)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             ))}
@@ -1716,7 +1704,7 @@ function Informes({ navState = null, onNavConsumed }) {
             <div>
               <h3 className="text-base font-semibold text-gray-900">Exportar informe</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Descarga el informe actual ({formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}) en PDF
+                Consulta el informe actual ({formatDateLong(fechaInicio)} – {formatDateLong(fechaFin)}) en PDF antes de descargarlo
                 {tipoDatos === 'contratos' && contarSemanasEnPeriodo(fechaInicio, fechaFin) > 1
                   ? ` — cubre ${contarSemanasEnPeriodo(fechaInicio, fechaFin)} semanas`
                   : ''}.
@@ -1738,7 +1726,7 @@ function Informes({ navState = null, onNavConsumed }) {
                 className="btn-primary flex items-center justify-center space-x-2 text-sm px-4 py-2 w-full sm:w-auto"
               >
                 <FileDown className="h-4 w-4" />
-                <span>Exportar a PDF</span>
+                <span>Ver PDF</span>
               </button>
             </div>
           </div>
@@ -1833,7 +1821,7 @@ function Informes({ navState = null, onNavConsumed }) {
               Periodo {formatDate(grupoInformeCobroModal.periodoInicio)} – {formatDate(grupoInformeCobroModal.periodoFin)}
             </p>
             <p className="text-xs text-gray-500">
-              Puedes ver el detalle en pantalla, guardar el informe o exportar solo el PDF.
+              Puedes ver el detalle en pantalla, guardar el informe o ver el PDF antes de descargarlo.
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -1849,7 +1837,7 @@ function Informes({ navState = null, onNavConsumed }) {
                 {procesandoInformeCobro ? 'Procesando...' : 'Guardar informe'}
               </button>
               <button type="button" onClick={handleInformeCobroSoloPDF} disabled={procesandoInformeCobro} className="btn-secondary w-full">
-                Solo exportar PDF
+                Ver PDF
               </button>
               <button type="button" onClick={() => setGrupoInformeCobroModal(null)} disabled={procesandoInformeCobro} className="btn-secondary w-full text-gray-600">
                 Cancelar
@@ -1905,6 +1893,13 @@ function Informes({ navState = null, onNavConsumed }) {
         title={alertModal.title}
         message={alertModal.message}
         type={alertModal.type}
+      />
+
+      <PdfPreviewModal
+        isOpen={!!pdfPreview}
+        preview={pdfPreview}
+        onClose={cerrarVistaPreviaPdf}
+        title={pdfPreview?.title}
       />
     </div>
   );

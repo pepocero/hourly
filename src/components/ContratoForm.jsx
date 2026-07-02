@@ -182,8 +182,8 @@ function ContratoForm({ contrato, onClose, onSave }) {
               color={formData.color}
             />
             <p className="text-xs text-gray-500 mt-2">
-              Días en los que el contrato exige horas ({formatDiasLaborables(formData.dias_laborables)}).
-              Si trabajas otro día (p. ej. domingo), todas esas horas son extras.
+              Días habituales del contrato para calcular horas esperadas ({formatDiasLaborables(formData.dias_laborables)}).
+              Si trabajas otro día (p. ej. domingo porque tu día libre es otro), también se descontarán las horas por día del contrato al calcular extras.
             </p>
           </div>
 

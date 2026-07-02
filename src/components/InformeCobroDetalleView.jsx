@@ -1,24 +1,18 @@
 import React from 'react';
 import { FileText } from 'lucide-react';
-import { isDiaSuelto } from '../utils/contratoHoras';
+import { buildFilasTablaInformeContrato, refrescarDatosInformeContratos } from '../utils/contratoHoras';
 import { formatFechaEU, formatEuro } from '../utils/formatFecha';
 
 function formatTime(time) {
   return time ? time.substring(0, 5) : '-';
 }
 
-function formatDuration(minutes) {
-  if (!minutes) return '-';
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
-}
-
 function InformeCobroDetalleView({ datosDetalle, titulo, subtitulo, metaLine }) {
   if (!datosDetalle) return null;
 
-  const subtotales = Object.values(datosDetalle.subtotalesPorContrato || {});
-  const resumen = datosDetalle.resumen || {};
+  const datos = refrescarDatosInformeContratos(datosDetalle);
+  const subtotales = Object.values(datos.subtotalesPorContrato || {});
+  const resumen = datos.resumen || {};
 
   return (
     <div className="space-y-4">
@@ -58,72 +52,58 @@ function InformeCobroDetalleView({ datosDetalle, titulo, subtitulo, metaLine }) 
         </div>
       </div>
 
-      {subtotales.map((subtotal) => (
-        <div key={subtotal.nombre} className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">{subtotal.nombre}</h4>
-          {(subtotal.dias || []).length > 0 && (
-            <div className="mb-3 overflow-x-auto">
-              <table className="min-w-full text-xs divide-y divide-gray-100 mb-2">
-                <thead>
-                  <tr className="text-gray-500">
-                    <th className="text-left py-1 pr-2">Día</th>
-                    <th className="text-right py-1 px-2">Trab.</th>
-                    <th className="text-right py-1 px-2">Contrato</th>
-                    <th className="text-right py-1 pl-2">Extras</th>
+      {subtotales.map((subtotal) => {
+        const filas = buildFilasTablaInformeContrato(subtotal);
+
+        return (
+          <div key={subtotal.nombre} className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white">
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">{subtotal.nombre}</h4>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs sm:text-sm divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Día</th>
+                    <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Entrada</th>
+                    <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Salida</th>
+                    <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500">Trab.</th>
+                    <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500">Contrato</th>
+                    <th className="px-2 sm:px-3 py-2 text-right font-medium text-gray-500">Extras</th>
+                    <th className="px-2 sm:px-3 py-2 text-left font-medium text-gray-500">Comentario</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {subtotal.dias.map((dia) => (
-                    <tr key={dia.fecha}>
-                      <td className="py-1 pr-2">{formatFechaEU(dia.fecha)}</td>
-                      <td className="text-right py-1 px-2">{dia.horasTrabajadas.toFixed(2)}h</td>
-                      <td className="text-right py-1 px-2">{dia.horasContrato.toFixed(2)}h</td>
-                      <td className="text-right py-1 pl-2 text-orange-600">{dia.horasExtras.toFixed(2)}h</td>
+                <tbody className="divide-y divide-gray-100">
+                  {filas.map((fila) => (
+                    <tr
+                      key={fila.id}
+                      className={fila.esDiaSuelto ? 'bg-amber-50' : ''}
+                    >
+                      <td className="px-2 sm:px-3 py-2 whitespace-nowrap">
+                        {formatFechaEU(fila.fecha)}
+                        {fila.esDiaSuelto && <span className="text-amber-700 ml-1">*</span>}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 whitespace-nowrap">{formatTime(fila.horaEntrada)}</td>
+                      <td className="px-2 sm:px-3 py-2 whitespace-nowrap">{formatTime(fila.horaSalida)}</td>
+                      <td className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">{fila.horasTurno}</td>
+                      <td className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">{fila.horasContrato}</td>
+                      <td className={`px-2 sm:px-3 py-2 text-right whitespace-nowrap font-medium ${fila.destacarExtras ? 'text-orange-600' : ''}`}>
+                        {fila.horasExtras}
+                      </td>
+                      <td className="px-2 sm:px-3 py-2 text-gray-600">{fila.comentario || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entrada</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Salida</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duración</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Comentario</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {(subtotal.registros || []).map((h) => (
-                  <tr
-                    key={h.id}
-                    className={isDiaSuelto(h) ? 'bg-amber-50' : ''}
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {formatFechaEU(h.fecha)}
-                      {isDiaSuelto(h) && <span className="text-amber-700 ml-1">*</span>}
-                    </td>
-                    <td className="px-3 py-2">{formatTime(h.hora_entrada)}</td>
-                    <td className="px-3 py-2">{formatTime(h.hora_salida)}</td>
-                    <td className="px-3 py-2">{formatDuration(h.duracion_minutos)}</td>
-                    <td className="px-3 py-2 text-gray-600">{h.descripcion || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p className="text-xs text-gray-500 mt-2">
+              Total: {(subtotal.totalHoras || 0).toFixed(2)}h
+              {' • '}
+              Extras: {(subtotal.horasExtras || 0).toFixed(2)}h
+              {' • '}
+              {formatEuro(subtotal.totalExtras || 0)}
+            </p>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Total: {(subtotal.totalHoras || 0).toFixed(2)}h
-            {' • '}
-            Extras: {(subtotal.horasExtras || 0).toFixed(2)}h
-            {' • '}
-            {formatEuro(subtotal.totalExtras || 0)}
-          </p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
