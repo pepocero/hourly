@@ -166,6 +166,42 @@ export function isDiaSuelto(horario) {
   return valor === true || valor === 1 || valor === '1';
 }
 
+/** Duración en minutos a partir de hora_entrada y hora_salida (HH:MM o HH:MM:SS). */
+export function calcularDuracionMinutosDesdeHoras(horaEntrada, horaSalida) {
+  if (!horaEntrada || !horaSalida) return 0;
+
+  const normalizarHora = (h) => {
+    const partes = String(h).trim().split(':');
+    if (partes.length < 2) return null;
+    const hh = partes[0].padStart(2, '0');
+    const mm = partes[1].padStart(2, '0');
+    const ss = (partes[2] || '00').padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  };
+
+  const entradaStr = normalizarHora(horaEntrada);
+  const salidaStr = normalizarHora(horaSalida);
+  if (!entradaStr || !salidaStr) return 0;
+
+  const entrada = new Date(`2000-01-01T${entradaStr}`);
+  const salida = new Date(`2000-01-01T${salidaStr}`);
+  let minutos = Math.round((salida - entrada) / (1000 * 60));
+  if (minutos < 0) minutos += 24 * 60;
+  return Math.max(0, minutos);
+}
+
+/** Minutos trabajados de un horario: siempre desde entrada/salida cuando existen. */
+export function getDuracionMinutosHorario(horario) {
+  if (!horario) return 0;
+
+  if (horario.hora_entrada && horario.hora_salida) {
+    return calcularDuracionMinutosDesdeHoras(horario.hora_entrada, horario.hora_salida);
+  }
+
+  const stored = parseInt(horario.duracion_minutos, 10);
+  return Number.isNaN(stored) ? 0 : Math.max(0, stored);
+}
+
 export function calcularDetalleDia(horasTrabajadasDia, fecha, contrato) {
   const c = normalizarContrato(contrato);
   const laborable = isDiaLaborable(fecha, c.dias_laborables);
@@ -248,7 +284,10 @@ export function calcularHorasExtrasPeriodo(horarios, contrato, fechaInicio = nul
   Object.entries(porFecha).forEach(([fecha, registros]) => {
     if (!estaEnRango(fecha, fechaInicio, fechaFin)) return;
 
-    const totalMinutos = registros.reduce((sum, h) => sum + (h.duracion_minutos || 0), 0);
+    const totalMinutos = registros.reduce(
+      (sum, h) => sum + getDuracionMinutosHorario(h),
+      0
+    );
     const horasTrabajadas = totalMinutos / 60;
     const detalle = calcularDetalleDia(horasTrabajadas, fecha, c);
 
@@ -263,7 +302,7 @@ export function calcularHorasExtrasPeriodo(horarios, contrato, fechaInicio = nul
   const diasSueltosDetalle = diasSueltos
     .filter((horario) => estaEnRango(horario.fecha, fechaInicio, fechaFin))
     .map((horario) => {
-      const horas = (horario.duracion_minutos || 0) / 60;
+      const horas = getDuracionMinutosHorario(horario) / 60;
       return {
         horario,
         horas,
@@ -473,7 +512,7 @@ export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInic
       };
     }
 
-    subtotales[contratoId].totalMinutos += parseInt(horario.duracion_minutos || 0, 10);
+    subtotales[contratoId].totalMinutos += getDuracionMinutosHorario(horario);
     subtotales[contratoId].registros.push(horario);
   });
 
@@ -514,11 +553,11 @@ export function buildInformeContratosSnapshot(horariosContrato, fechaInicio, fec
   );
 
   const totalGeneralHoras = (horariosContrato || []).reduce(
-    (sum, h) => sum + (parseFloat(h.duracion_minutos || 0) / 60),
+    (sum, h) => sum + getDuracionMinutosHorario(h) / 60,
     0
   );
   const totalGeneralMinutos = (horariosContrato || []).reduce(
-    (sum, h) => sum + parseInt(h.duracion_minutos || 0, 10),
+    (sum, h) => sum + getDuracionMinutosHorario(h),
     0
   );
   const totalHorasExtras = Object.values(subtotalesPorContrato).reduce(

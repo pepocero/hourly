@@ -6,6 +6,7 @@ import AlertModal from './AlertModal';
 import {
   calcularResumenHorasExtrasMultiples,
   calcularHorasExtrasPeriodo,
+  getDuracionMinutosHorario,
   formatDiasLaborables,
   agruparLiquidacionesContrato,
   encontrarDiasYaLiquidados,
@@ -280,6 +281,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
       <div className="space-y-2">
         {horarios.map((horario) => {
           const detalleDia = detallePorDiaContrato[`${horario.contrato_id}-${horario.fecha}`];
+          const minutosTrabajados = getDuracionMinutosHorario(horario);
 
           return (
           <div
@@ -317,18 +319,18 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                     <span>{horario.hora_entrada}</span>
                     <span>-</span>
                     <span>{horario.hora_salida || 'En curso'}</span>
-                    {horario.duracion_minutos > 0 && (
+                    {minutosTrabajados > 0 && (
                       <>
                         <span className="text-gray-400">•</span>
                         <span className="font-medium text-primary-600">
-                          {formatDuration(horario.duracion_minutos)}
+                          {formatDuration(minutosTrabajados)}
                         </span>
                       </>
                     )}
                   </div>
                 </div>
 
-                {detalleDia && horario.duracion_minutos > 0 && (
+                {detalleDia && minutosTrabajados > 0 && (
                   <p className="mt-1.5 text-xs sm:text-sm text-gray-600">
                     <span>
                       Contrato:{' '}
