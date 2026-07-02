@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil, Archive, Save, Receipt, Eye, X } from 'lucide-react';
 import apiService from '../services/api';
-import { calcularHorasExtrasPeriodo, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo, contarDiasEnPeriodo } from '../utils/contratoHoras';
+import { calcularHorasExtrasPeriodo, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo, contarDiasEnPeriodo, contarDiasLaborablesEnRango, getDuracionMinutosHorario, calcularExtrasHorarioFila } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 import { generarTituloInformeCobro, exportarSnapshotContratosPDF } from '../utils/informeGuardado';
 import ConfirmModal from './ConfirmModal';
@@ -172,6 +172,24 @@ function Informes({ navState = null, onNavConsumed }) {
     return `${hours}h ${mins}m`;
   };
 
+  const formatHorasDecimal = (horas) => {
+    const n = parseFloat(horas);
+    if (Number.isNaN(n) || n <= 0) return '0h';
+    return `${parseFloat(n.toFixed(1))}h`;
+  };
+
+  const formatMinutosDecimal = (minutos) => {
+    if (!minutos || minutos <= 0) return '0h';
+    return formatHorasDecimal(minutos / 60);
+  };
+
+  const getContratoRefDesdeSubtotal = (subtotal) => ({
+    horas_semanales: subtotal.horasSemanales,
+    horas_por_dia: subtotal.horasPorDia,
+    valor_hora_extra: subtotal.valorHoraExtra,
+    dias_laborables: subtotal.diasLaborables
+  });
+
   // Calcular subtotales por proyecto
   const calcularSubtotalesPorProyecto = () => {
     const subtotales = {};
@@ -220,7 +238,7 @@ function Informes({ navState = null, onNavConsumed }) {
         };
       }
       
-      subtotales[contratoId].totalMinutos += parseInt(horario.duracion_minutos || 0);
+      subtotales[contratoId].totalMinutos += getDuracionMinutosHorario(horario);
       subtotales[contratoId].registros.push(horario);
     });
 
@@ -239,13 +257,19 @@ function Informes({ navState = null, onNavConsumed }) {
       );
 
       const totalHoras = subtotal.totalMinutos / 60;
+      const diasLaborablesEnPeriodo = contarDiasLaborablesEnRango(
+        fechaInicio,
+        fechaFin,
+        subtotal.diasLaborables
+      );
 
       subtotal.totalHoras = totalHoras;
-      subtotal.horasExtras = resultado.horasExtras;
-      subtotal.horasExtrasContrato = resultado.horasExtrasContrato;
-      subtotal.horasExtrasDiasSueltos = resultado.horasExtrasDiasSueltos;
-      subtotal.horasNormales = resultado.horasNormales;
-      subtotal.totalExtras = resultado.importe;
+      subtotal.horasExtras = resultado.horasExtras ?? 0;
+      subtotal.horasExtrasContrato = resultado.horasExtrasContrato ?? 0;
+      subtotal.horasExtrasDiasSueltos = resultado.horasExtrasDiasSueltos ?? 0;
+      subtotal.horasNormales = resultado.horasNormales ?? 0;
+      subtotal.horasEsperadas = diasLaborablesEnPeriodo * (parseFloat(subtotal.horasPorDia) || 0);
+      subtotal.totalExtras = resultado.importe ?? 0;
       subtotal.dias = resultado.dias;
       subtotal.diasSueltos = resultado.diasSueltos;
     });
@@ -268,6 +292,10 @@ function Informes({ navState = null, onNavConsumed }) {
   const totalGeneralGanancias = tipoDatos === 'proyectos'
     ? horas.reduce((sum, hora) => sum + parseFloat(hora.total || 0), 0)
     : Object.values(subtotalesPorContrato).reduce((sum, subtotal) => sum + subtotal.totalExtras, 0);
+
+  const totalGeneralHorasExtras = tipoDatos === 'contratos'
+    ? Object.values(subtotalesPorContrato).reduce((sum, subtotal) => sum + (subtotal.horasExtras || 0), 0)
+    : 0;
   
   const totalRegistros = tipoDatos === 'proyectos' ? horas.length : horariosContrato.length;
 
@@ -417,10 +445,6 @@ function Informes({ navState = null, onNavConsumed }) {
             }
           );
         } else if (tipoDatos === 'contratos') {
-          const totalHorasExtrasContratos = Object.values(subtotalesPorContrato).reduce(
-            (sum, s) => sum + (s.horasExtras || 0),
-            0
-          );
           const listaContratos = Object.values(subtotalesPorContrato);
           const contratosTitle = listaContratos.length === 1
             ? `Informe de Horarios de Contrato ${listaContratos[0].nombre}`
@@ -438,7 +462,7 @@ function Informes({ navState = null, onNavConsumed }) {
             subtotalesPorContrato,
             {
               totalHoras: totalGeneralHoras,
-              totalHorasExtras: totalHorasExtrasContratos,
+              totalHorasExtras: totalGeneralHorasExtras,
               totalGanancias: totalGeneralGanancias,
               totalRegistros: horariosContrato.length,
               promedioMinutos: horariosContrato.length > 0 ? totalGeneralMinutos / horariosContrato.length : 0
@@ -1528,7 +1552,7 @@ function Informes({ navState = null, onNavConsumed }) {
                     <p className="text-xs text-gray-600 mb-1">Horas Normales</p>
                     <p className="text-lg font-bold text-green-600">{subtotal.horasNormales.toFixed(2)}h</p>
                     <p className="text-xs text-gray-500">
-                      de {subtotal.horasEsperadas.toFixed(2)}h esperadas ({subtotal.horasSemanales}h sem. {formatDiasLaborables(subtotal.diasLaborables)})
+                      de {(subtotal.horasEsperadas ?? 0).toFixed(2)}h esperadas ({subtotal.horasPorDia || 0}h/día {formatDiasLaborables(subtotal.diasLaborables)})
                     </p>
                   </div>
                   <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
@@ -1552,10 +1576,16 @@ function Informes({ navState = null, onNavConsumed }) {
                 <div className="mt-3">
                   <p className="text-xs font-medium text-gray-600 mb-2">Horarios Registrados ({subtotal.registros.length})</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {subtotal.registros.map((horario) => (
+                    {subtotal.registros.map((horario) => {
+                      const registrosMismoDia = subtotal.registros.filter((h) => h.fecha === horario.fecha);
+                      const contratoRef = getContratoRefDesdeSubtotal(subtotal);
+                      const minutosTrabajados = getDuracionMinutosHorario(horario);
+                      const extrasFila = calcularExtrasHorarioFila(horario, registrosMismoDia, contratoRef);
+
+                      return (
                       <div
                         key={horario.id}
-                        className={`flex justify-between items-center py-2 px-3 rounded border text-sm ${
+                        className={`flex justify-between items-start gap-2 py-2 px-3 rounded border text-sm ${
                           isDiaSuelto(horario)
                             ? 'bg-amber-100 border-amber-300 border-l-4 border-l-amber-500'
                             : 'bg-white border-gray-200'
@@ -1576,36 +1606,57 @@ function Informes({ navState = null, onNavConsumed }) {
                             <p className="text-xs text-gray-500 mt-1 truncate">{horario.descripcion}</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 ml-2 shrink-0">
-                          <span className="text-primary-600 font-medium">
-                            {formatDuration(horario.duracion_minutos)}
-                          </span>
-                          {isDiaSuelto(horario) && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDiaSueltoEditando(horario);
-                                  setShowDiaSueltoForm(true);
-                                }}
-                                className="p-1 text-gray-500 hover:text-primary-600"
-                                title="Editar día suelto"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setHorarioDiaSueltoToDelete(horario)}
-                                className="p-1 text-gray-500 hover:text-red-600"
-                                title="Eliminar día suelto"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
+                        <div className="flex flex-col items-end gap-1 ml-2 shrink-0 text-right">
+                          <div className="flex items-center gap-2">
+                            <span className="text-primary-600 font-medium">
+                              {formatMinutosDecimal(minutosTrabajados)}
+                            </span>
+                            {extrasFila.mostrarExtras && extrasFila.variosTurnos && !extrasFila.esDiaSuelto && (
+                              <>
+                                <span className="text-gray-400">•</span>
+                                <span className="text-xs font-medium text-gray-600">
+                                  Total día: {formatHorasDecimal(extrasFila.horasTrabajadasDia)}
+                                </span>
+                              </>
+                            )}
+                            {extrasFila.mostrarExtras && !extrasFila.variosTurnos && (
+                              <span className={`text-xs font-medium ${extrasFila.horasExtras > 0 ? 'text-orange-600' : 'text-gray-500'}`}>
+                                Extras: {formatHorasDecimal(extrasFila.horasExtras)}
+                              </span>
+                            )}
+                            {isDiaSuelto(horario) && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDiaSueltoEditando(horario);
+                                    setShowDiaSueltoForm(true);
+                                  }}
+                                  className="p-1 text-gray-500 hover:text-primary-600"
+                                  title="Editar día suelto"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setHorarioDiaSueltoToDelete(horario)}
+                                  className="p-1 text-gray-500 hover:text-red-600"
+                                  title="Eliminar día suelto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          {extrasFila.mostrarExtras && extrasFila.variosTurnos && !extrasFila.esDiaSuelto && (
+                            <span className={`text-xs font-medium ${extrasFila.horasExtras > 0 ? 'text-orange-600' : 'text-gray-500'}`}>
+                              Extras del día: {formatHorasDecimal(extrasFila.horasExtras)}
+                            </span>
                           )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1621,7 +1672,7 @@ function Informes({ navState = null, onNavConsumed }) {
                     {formatEuro(totalGeneralGanancias)}
                   </div>
                   <div className="text-sm text-gray-600">
-                    {totalGeneralHoras.toFixed(1)} horas totales • {totalRegistros} registros
+                    {totalGeneralHorasExtras.toFixed(1)}h extras • {totalGeneralHoras.toFixed(1)}h trabajadas • {totalRegistros} registros
                   </div>
                 </div>
               </div>
