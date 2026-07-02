@@ -5,6 +5,7 @@ import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import {
   calcularResumenHorasExtrasMultiples,
+  calcularHorasExtrasPeriodo,
   formatDiasLaborables,
   agruparLiquidacionesContrato,
   encontrarDiasYaLiquidados,
@@ -190,10 +191,44 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   };
 
   const formatDuration = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+    if (!minutes || minutes <= 0) return null;
+    const horas = minutes / 60;
+    return `${parseFloat(horas.toFixed(1))}h`;
   };
+
+  const formatHorasDecimal = (horas) => {
+    const n = parseFloat(horas);
+    if (Number.isNaN(n)) return '0h';
+    return `${parseFloat(n.toFixed(1))}h`;
+  };
+
+  const detallePorDiaContrato = useMemo(() => {
+    const grupos = {};
+
+    horarios.forEach((horario) => {
+      const key = `${horario.contrato_id}-${horario.fecha}`;
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(horario);
+    });
+
+    const map = {};
+    Object.entries(grupos).forEach(([key, registros]) => {
+      const first = registros[0];
+      const contrato = contratosMap[first.contrato_id] || {
+        horas_por_dia: first.horas_por_dia,
+        horas_semanales: first.horas_semanales,
+        dias_laborables: first.dias_laborables,
+        valor_hora_extra: first.valor_hora_extra
+      };
+      const resultado = calcularHorasExtrasPeriodo(registros, contrato, first.fecha, first.fecha);
+      map[key] = {
+        horasPorDia: resultado.horasPorDia,
+        horasExtras: resultado.horasExtras
+      };
+    });
+
+    return map;
+  }, [horarios, contratosMap]);
 
   const formatDate = (dateString) => formatFechaEUCorta(dateString);
 
@@ -243,7 +278,10 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   return (
     <>
       <div className="space-y-2">
-        {horarios.map((horario) => (
+        {horarios.map((horario) => {
+          const detalleDia = detallePorDiaContrato[`${horario.contrato_id}-${horario.fecha}`];
+
+          return (
           <div
             key={horario.id}
             className="p-3 sm:p-4 bg-white border-l-4 border-r border-t border-b border-gray-200 rounded-lg hover:shadow-md transition-shadow"
@@ -273,20 +311,40 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                 </div>
 
                 {/* Horario */}
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Clock className="h-4 w-4 text-gray-400" />
-                  <span>{horario.hora_entrada}</span>
-                  <span>-</span>
-                  <span>{horario.hora_salida || 'En curso'}</span>
-                  {horario.duracion_minutos > 0 && (
-                    <>
-                      <span className="text-gray-400">•</span>
-                      <span className="font-medium text-primary-600">
-                        {formatDuration(horario.duracion_minutos)}
-                      </span>
-                    </>
-                  )}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4 text-gray-400" />
+                    <span>{horario.hora_entrada}</span>
+                    <span>-</span>
+                    <span>{horario.hora_salida || 'En curso'}</span>
+                    {horario.duracion_minutos > 0 && (
+                      <>
+                        <span className="text-gray-400">•</span>
+                        <span className="font-medium text-primary-600">
+                          {formatDuration(horario.duracion_minutos)}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
+
+                {detalleDia && horario.duracion_minutos > 0 && (
+                  <p className="mt-1.5 text-xs sm:text-sm text-gray-600">
+                    <span>
+                      Contrato:{' '}
+                      <span className="font-medium text-gray-800">
+                        {formatHorasDecimal(detalleDia.horasPorDia)}/día
+                      </span>
+                    </span>
+                    <span className="text-gray-400 mx-2">•</span>
+                    <span>
+                      Extras:{' '}
+                      <span className={`font-medium ${detalleDia.horasExtras > 0 ? 'text-orange-600' : 'text-gray-800'}`}>
+                        {formatHorasDecimal(detalleDia.horasExtras)}
+                      </span>
+                    </span>
+                  </p>
+                )}
 
                 {/* Descripción */}
                 {horario.descripcion && (
@@ -339,7 +397,8 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Resumen de Horas Extras */}
