@@ -1,5 +1,5 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
-import { Edit, Trash2, Calendar, Clock, DollarSign, AlertCircle, CheckCircle2, FileCheck } from 'lucide-react';
+import { Edit, Trash2, Calendar, Clock, DollarSign, FileCheck } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
@@ -349,35 +349,6 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
             <Clock className="h-5 w-5 text-orange-600" />
             <span>Resumen de Horas Extras</span>
           </h5>
-
-          {esAnticipada && !esDefinitiva && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start space-x-2">
-              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-900">
-                <p className="font-medium">Liquidación anticipada (provisional)</p>
-                <p className="text-xs mt-1">
-                  El periodo no incluye el día de cierre de la semana. Las extras mostradas son provisionales.
-                  Al cerrar la semana se calculará el ajuste definitivo.
-                </p>
-                {resumenHorasExtras.detallesPorContrato.flatMap((d) => d.semanas || [])
-                  .filter((s) => s.diasPendientes?.length > 0)
-                  .map((s, i) => (
-                    <p key={i} className="text-xs mt-1">
-                      Días pendientes: {s.diasPendientes.join(', ')} (cierre: {s.diaCierreLabel})
-                    </p>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {esDefinitiva && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-300 rounded-lg flex items-start space-x-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-900">
-                Liquidación definitiva: el periodo incluye el día de cierre semanal del contrato.
-              </p>
-            </div>
-          )}
           
           {resumenHorasExtras.detallesPorContrato.length > 0 ? (
             <>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { FileCheck, Trash2, AlertCircle, Receipt } from 'lucide-react';
+import { FileCheck, Trash2, AlertCircle, Receipt, Eye, X } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
+import InformeCobroDetalleView from './InformeCobroDetalleView';
 import { agruparLiquidacionesContrato, contarDiasEnPeriodo, buildInformeContratosSnapshot } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
 import { generarTituloInformeCobro, exportarSnapshotContratosPDF } from '../utils/informeGuardado';
@@ -16,11 +17,24 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [grupoInformeModal, setGrupoInformeModal] = useState(null);
   const [procesandoInforme, setProcesandoInforme] = useState(false);
+  const [snapshotDetalle, setSnapshotDetalle] = useState(null);
 
   const getPeriodoGrupo = (grupo) => ({
     inicio: grupo.periodoInicio,
     fin: grupo.periodoFin
   });
+
+  const cargarSnapshotGrupo = async (grupo) => {
+    const { inicio, fin } = getPeriodoGrupo(grupo);
+    const horariosRes = await apiService.getHorariosContrato(grupo.contratoId, inicio, fin, true);
+    const horarios = horariosRes.data || [];
+    if (horarios.length === 0) return null;
+    return buildInformeContratosSnapshot(horarios, inicio, fin, {
+      contratoId: grupo.contratoId,
+      contratoNombre: grupo.contratoNombre,
+      liquidacionAgrupada: true
+    });
+  };
 
   const handleInformeCobroClick = (grupo) => {
     setGrupoInformeModal(grupo);
@@ -28,24 +42,42 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
 
   const handleInformeSoloPDF = async () => {
     if (!grupoInformeModal) return;
-    const { inicio, fin } = getPeriodoGrupo(grupoInformeModal);
 
     try {
       setProcesandoInforme(true);
-      const horariosRes = await apiService.getHorariosContrato(grupoInformeModal.contratoId, inicio, fin, true);
-      const horarios = horariosRes.data || [];
-      if (horarios.length === 0) {
+      const snapshot = await cargarSnapshotGrupo(grupoInformeModal);
+      if (!snapshot) {
         setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
         return;
       }
-      const snapshot = buildInformeContratosSnapshot(horarios, inicio, fin, {
-        contratoId: grupoInformeModal.contratoId,
-        contratoNombre: grupoInformeModal.contratoNombre
-      });
       await exportarSnapshotContratosPDF(snapshot);
       setGrupoInformeModal(null);
     } catch (error) {
       setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo generar el PDF.', type: 'error' });
+    } finally {
+      setProcesandoInforme(false);
+    }
+  };
+
+  const handleInformeVerDetalle = async () => {
+    if (!grupoInformeModal) return;
+
+    try {
+      setProcesandoInforme(true);
+      const snapshot = await cargarSnapshotGrupo(grupoInformeModal);
+      if (!snapshot) {
+        setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
+        return;
+      }
+      setGrupoInformeModal(null);
+      setSnapshotDetalle({
+        snapshot,
+        contratoNombre: grupoInformeModal.contratoNombre,
+        periodoInicio: grupoInformeModal.periodoInicio,
+        periodoFin: grupoInformeModal.periodoFin
+      });
+    } catch (error) {
+      setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo cargar el detalle del informe.', type: 'error' });
     } finally {
       setProcesandoInforme(false);
     }
@@ -289,6 +321,15 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
             <div className="flex flex-col gap-2">
               <button
                 type="button"
+                onClick={handleInformeVerDetalle}
+                disabled={procesandoInforme}
+                className="btn-secondary w-full flex items-center justify-center gap-2 border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+              >
+                <Eye className="h-4 w-4" />
+                {procesandoInforme ? 'Cargando...' : 'Ver detalle del informe'}
+              </button>
+              <button
+                type="button"
                 onClick={handleInformeGuardar}
                 disabled={procesandoInforme}
                 className="btn-primary w-full"
@@ -309,7 +350,47 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                 disabled={procesandoInforme}
                 className="btn-secondary w-full text-gray-600"
               >
-                Descartar
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {snapshotDetalle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col z-50 sm:p-4">
+          <div className="bg-white flex flex-col flex-1 sm:flex-none sm:max-h-[92vh] sm:rounded-xl sm:shadow-xl sm:mx-auto sm:w-full sm:max-w-4xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-orange-50 flex-shrink-0">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Detalle del informe para cobro</h3>
+              <button
+                type="button"
+                onClick={() => setSnapshotDetalle(null)}
+                className="p-2 rounded-lg text-gray-600 hover:bg-orange-100 hover:text-gray-900"
+                aria-label="Cerrar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              <InformeCobroDetalleView
+                datosDetalle={snapshotDetalle.snapshot}
+                titulo={generarTituloInformeCobro(
+                  snapshotDetalle.contratoNombre,
+                  snapshotDetalle.periodoInicio,
+                  snapshotDetalle.periodoFin,
+                  contarDiasEnPeriodo(snapshotDetalle.periodoInicio, snapshotDetalle.periodoFin)
+                )}
+                subtitulo={`${formatFechaEU(snapshotDetalle.periodoInicio)} – ${formatFechaEU(snapshotDetalle.periodoFin)}`}
+                metaLine="Vista previa sin guardar — ideal para consultar desde el móvil"
+              />
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setSnapshotDetalle(null)}
+                className="btn-secondary w-full sm:w-auto"
+              >
+                Cerrar
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil, Archive, Save, Receipt } from 'lucide-react';
+import { FileText, Calendar, Download, Euro, Clock, BarChart3, FileDown, FileCheck, Trash2, Plus, Pencil, Archive, Save, Receipt, Eye, X } from 'lucide-react';
 import apiService from '../services/api';
 import { calcularHorasExtrasPeriodo, formatDiasLaborables, getSundayOfWeek, isDiaSuelto, agruparLiquidacionesContrato, buildInformeContratosSnapshot, contarSemanasEnPeriodo, contarDiasEnPeriodo } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaEUCorta, formatFechaRegistro, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
@@ -8,6 +8,7 @@ import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import HorarioContratoForm from './HorarioContratoForm';
 import InformesGuardados from './InformesGuardados';
+import InformeCobroDetalleView from './InformeCobroDetalleView';
 
 function Informes({ navState = null, onNavConsumed }) {
   const [seccionPrincipal, setSeccionPrincipal] = useState('generar');
@@ -39,6 +40,7 @@ function Informes({ navState = null, onNavConsumed }) {
   const [generandoInformeCobro, setGenerandoInformeCobro] = useState(null);
   const [grupoInformeCobroModal, setGrupoInformeCobroModal] = useState(null);
   const [procesandoInformeCobro, setProcesandoInformeCobro] = useState(false);
+  const [snapshotDetalleCobro, setSnapshotDetalleCobro] = useState(null);
 
   useEffect(() => {
     if (!navState) return;
@@ -562,6 +564,18 @@ function Informes({ navState = null, onNavConsumed }) {
 
   const getNumDiasGrupo = (grupo) => contarDiasEnPeriodo(grupo.periodoInicio, grupo.periodoFin);
 
+  const cargarSnapshotGrupoInformeCobro = async (grupo) => {
+    const { fechaInicio: inicio, fechaFin: fin } = getPeriodoLiquidacionGrupo(grupo);
+    const horariosRes = await apiService.getHorariosContrato(grupo.contratoId, inicio, fin, true);
+    const horarios = horariosRes.data || [];
+    if (horarios.length === 0) return null;
+    return buildInformeContratosSnapshot(horarios, inicio, fin, {
+      contratoId: grupo.contratoId,
+      contratoNombre: grupo.contratoNombre,
+      liquidacionAgrupada: true
+    });
+  };
+
   const handleGuardarInformeContratos = async () => {
     if (!fechaInicio || !fechaFin || horariosContrato.length === 0) return;
 
@@ -627,24 +641,42 @@ function Informes({ navState = null, onNavConsumed }) {
 
   const handleInformeCobroSoloPDF = async () => {
     if (!grupoInformeCobroModal) return;
-    const { fechaInicio: inicio, fechaFin: fin } = getPeriodoLiquidacionGrupo(grupoInformeCobroModal);
 
     try {
       setProcesandoInformeCobro(true);
-      const horariosRes = await apiService.getHorariosContrato(grupoInformeCobroModal.contratoId, inicio, fin, true);
-      const horarios = horariosRes.data || [];
-      if (horarios.length === 0) {
+      const snapshot = await cargarSnapshotGrupoInformeCobro(grupoInformeCobroModal);
+      if (!snapshot) {
         setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
         return;
       }
-      const snapshot = buildInformeContratosSnapshot(horarios, inicio, fin, {
-        contratoId: grupoInformeCobroModal.contratoId,
-        contratoNombre: grupoInformeCobroModal.contratoNombre
-      });
       await exportarSnapshotContratosPDF(snapshot);
       setGrupoInformeCobroModal(null);
     } catch (error) {
       setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo generar el PDF.', type: 'error' });
+    } finally {
+      setProcesandoInformeCobro(false);
+    }
+  };
+
+  const handleInformeCobroVerDetalle = async () => {
+    if (!grupoInformeCobroModal) return;
+
+    try {
+      setProcesandoInformeCobro(true);
+      const snapshot = await cargarSnapshotGrupoInformeCobro(grupoInformeCobroModal);
+      if (!snapshot) {
+        setAlertModal({ isOpen: true, title: 'Sin datos', message: 'No hay horarios en ese periodo.', type: 'info' });
+        return;
+      }
+      setSnapshotDetalleCobro({
+        snapshot,
+        contratoNombre: grupoInformeCobroModal.contratoNombre,
+        periodoInicio: grupoInformeCobroModal.periodoInicio,
+        periodoFin: grupoInformeCobroModal.periodoFin
+      });
+      setGrupoInformeCobroModal(null);
+    } catch (error) {
+      setAlertModal({ isOpen: true, title: 'Error', message: 'No se pudo cargar el detalle del informe.', type: 'error' });
     } finally {
       setProcesandoInformeCobro(false);
     }
@@ -1749,7 +1781,19 @@ function Informes({ navState = null, onNavConsumed }) {
             <p className="text-sm text-gray-600">
               Periodo {formatDate(grupoInformeCobroModal.periodoInicio)} – {formatDate(grupoInformeCobroModal.periodoFin)}
             </p>
+            <p className="text-xs text-gray-500">
+              Puedes ver el detalle en pantalla, guardar el informe o exportar solo el PDF.
+            </p>
             <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleInformeCobroVerDetalle}
+                disabled={procesandoInformeCobro}
+                className="btn-secondary w-full flex items-center justify-center gap-2 border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100"
+              >
+                <Eye className="h-4 w-4" />
+                {procesandoInformeCobro ? 'Cargando...' : 'Ver detalle del informe'}
+              </button>
               <button type="button" onClick={handleInformeCobroGuardar} disabled={procesandoInformeCobro} className="btn-primary w-full">
                 {procesandoInformeCobro ? 'Procesando...' : 'Guardar informe'}
               </button>
@@ -1757,7 +1801,47 @@ function Informes({ navState = null, onNavConsumed }) {
                 Solo exportar PDF
               </button>
               <button type="button" onClick={() => setGrupoInformeCobroModal(null)} disabled={procesandoInformeCobro} className="btn-secondary w-full text-gray-600">
-                Descartar
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {snapshotDetalleCobro && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex flex-col z-50 sm:p-4">
+          <div className="bg-white flex flex-col flex-1 sm:flex-none sm:max-h-[92vh] sm:rounded-xl sm:shadow-xl sm:mx-auto sm:w-full sm:max-w-4xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-orange-50 flex-shrink-0">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Detalle del informe para cobro</h3>
+              <button
+                type="button"
+                onClick={() => setSnapshotDetalleCobro(null)}
+                className="p-2 rounded-lg text-gray-600 hover:bg-orange-100 hover:text-gray-900"
+                aria-label="Cerrar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              <InformeCobroDetalleView
+                datosDetalle={snapshotDetalleCobro.snapshot}
+                titulo={generarTituloInformeCobro(
+                  snapshotDetalleCobro.contratoNombre,
+                  snapshotDetalleCobro.periodoInicio,
+                  snapshotDetalleCobro.periodoFin,
+                  getNumDiasGrupo(snapshotDetalleCobro)
+                )}
+                subtitulo={`${formatDate(snapshotDetalleCobro.periodoInicio)} – ${formatDate(snapshotDetalleCobro.periodoFin)}`}
+                metaLine="Vista previa sin guardar — ideal para consultar desde el móvil"
+              />
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setSnapshotDetalleCobro(null)}
+                className="btn-secondary w-full sm:w-auto"
+              >
+                Cerrar
               </button>
             </div>
           </div>

@@ -183,14 +183,14 @@ function Contratos({ onNavigateToInformes }) {
           <div className="card">
             <div className="flex flex-col space-y-3 mb-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50 w-full sm:w-auto">
+                <div className="flex rounded-lg border border-orange-200 p-1 bg-orange-50/80 w-full sm:w-auto gap-1">
                   <button
                     type="button"
                     onClick={() => setVistaSeccion('horarios')}
-                    className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200 ${
                       vistaSeccion === 'horarios'
-                        ? 'bg-white text-primary-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200/60'
+                        : 'bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100'
                     }`}
                   >
                     Horarios
@@ -198,10 +198,10 @@ function Contratos({ onNavigateToInformes }) {
                   <button
                     type="button"
                     onClick={() => setVistaSeccion('liquidaciones')}
-                    className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    className={`flex-1 sm:flex-none px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200 ${
                       vistaSeccion === 'liquidaciones'
-                        ? 'bg-white text-primary-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200/60'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
                     }`}
                   >
                     Liquidaciones
