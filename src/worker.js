@@ -1461,6 +1461,64 @@ export default {
         }
       }
 
+      // PATCH /api/liquidaciones-contrato/periodo/pagado - Marcar periodo como pagado o pendiente
+      if (url.pathname === '/api/liquidaciones-contrato/periodo/pagado' && request.method === 'PATCH') {
+        try {
+          const body = await request.json();
+          const contratoId = parseInt(body.contrato_id, 10);
+          const fechaInicio = body.fecha_inicio;
+          const fechaCierre = body.fecha_fin || body.fecha_cierre;
+          const pagado = !!body.pagado;
+
+          if (!contratoId || !fechaInicio || !fechaCierre) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'contrato_id, fecha_inicio y fecha_fin son requeridos'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          const result = await db.updateLiquidacionPeriodoPagado(
+            authResult.userId,
+            contratoId,
+            fechaInicio,
+            fechaCierre,
+            pagado
+          );
+
+          if (!result.success || result.meta.changes === 0) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'No se encontró liquidación en ese periodo'
+            }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: pagado ? 'Periodo marcado como pagado' : 'Periodo marcado como pendiente de cobro',
+            data: { pagado, actualizadas: result.meta.changes }
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          console.error('Error en /api/liquidaciones-contrato/periodo/pagado (PATCH):', error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Error interno del servidor',
+            details: error.message
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+
       // DELETE /api/liquidaciones-contrato/periodo - Anular liquidación agrupada por periodo
       if (url.pathname === '/api/liquidaciones-contrato/periodo' && request.method === 'DELETE') {
         try {
@@ -1743,6 +1801,56 @@ export default {
             });
           } catch (error) {
             console.error('Error en /api/informes-guardados (POST):', error);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Error interno del servidor',
+              details: error.message
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          }
+        }
+
+        if (request.method === 'PATCH' && informeId) {
+          try {
+            const body = await request.json();
+            const titulo = String(body.titulo || '').trim();
+
+            if (!titulo) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'El título es obligatorio'
+              }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            const existente = await db.getInformeGuardadoById(authResult.userId, informeId);
+            if (!existente) {
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'Informe no encontrado'
+              }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+              });
+            }
+
+            await db.updateInformeGuardadoTitulo(authResult.userId, informeId, titulo);
+            const actualizado = await db.getInformeGuardadoById(authResult.userId, informeId);
+
+            return new Response(JSON.stringify({
+              success: true,
+              data: actualizado,
+              message: 'Informe actualizado correctamente'
+            }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+          } catch (error) {
+            console.error('Error en /api/informes-guardados/:id (PATCH):', error);
             return new Response(JSON.stringify({
               success: false,
               error: 'Error interno del servidor',

@@ -6,7 +6,8 @@ import {
   Search,
   Calendar,
   Clock,
-  ChevronLeft
+  ChevronLeft,
+  Pencil
 } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
@@ -18,7 +19,15 @@ import {
 import { revokePdfPreview } from '../utils/pdfPreview';
 import PdfPreviewModal from './PdfPreviewModal';
 import InformeCobroDetalleView from './InformeCobroDetalleView';
+import { formatPeriodoInformeResumen } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro } from '../utils/formatFecha';
+
+function getSubtituloInformeGuardado(informe) {
+  const periodo = formatPeriodoInformeResumen(informe.fecha_inicio, informe.fecha_fin);
+  return `${formatFechaEU(informe.fecha_inicio)} – ${formatFechaEU(informe.fecha_fin)} • ${periodo.labelDias} • ${periodo.labelSemanas}${
+    informe.liquidacion_agrupada ? ' • Liquidación agrupada' : ''
+  }`;
+}
 
 function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeInicialConsumido }) {
   const [informes, setInformes] = useState([]);
@@ -33,6 +42,9 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
   const [informeToDelete, setInformeToDelete] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [pdfPreview, setPdfPreview] = useState(null);
+  const [editandoTitulo, setEditandoTitulo] = useState(false);
+  const [tituloEditado, setTituloEditado] = useState('');
+  const [guardandoTitulo, setGuardandoTitulo] = useState(false);
 
   const cerrarVistaPreviaPdf = () => {
     setPdfPreview((prev) => {
@@ -130,6 +142,57 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
     }
   };
 
+  const iniciarEdicionTitulo = () => {
+    if (!informeSeleccionado) return;
+    setTituloEditado(informeSeleccionado.titulo || '');
+    setEditandoTitulo(true);
+  };
+
+  const cancelarEdicionTitulo = () => {
+    setEditandoTitulo(false);
+    setTituloEditado('');
+  };
+
+  const handleGuardarTitulo = async () => {
+    if (!informeSeleccionado) return;
+    const titulo = tituloEditado.trim();
+    if (!titulo) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Título obligatorio',
+        message: 'El nombre del informe no puede estar vacío.',
+        type: 'warning'
+      });
+      return;
+    }
+
+    try {
+      setGuardandoTitulo(true);
+      const response = await apiService.updateInformeGuardado(informeSeleccionado.id, { titulo });
+      if (response.success) {
+        setInformeSeleccionado(response.data);
+        setEditandoTitulo(false);
+        await loadInformes();
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'No se pudo renombrar',
+          message: response.error || 'Error al actualizar el informe.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'No se pudo renombrar el informe.',
+        type: 'error'
+      });
+    } finally {
+      setGuardandoTitulo(false);
+    }
+  };
+
   const handleEliminarConfirm = async () => {
     if (!informeToDelete) return;
     try {
@@ -191,6 +254,14 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              onClick={iniciarEdicionTitulo}
+              className="btn-secondary flex items-center gap-2 text-sm"
+            >
+              <Pencil className="h-4 w-4" />
+              Renombrar
+            </button>
+            <button
+              type="button"
               onClick={handleExportarPDF}
               disabled={exportandoPdf}
               className="btn-primary flex items-center gap-2 text-sm"
@@ -210,14 +281,43 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
         </div>
 
         <div className="card">
+          {editandoTitulo && (
+            <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <label className="block text-sm font-medium text-gray-700" htmlFor="titulo-informe-edit">
+                Nombre del informe
+              </label>
+              <input
+                id="titulo-informe-edit"
+                type="text"
+                value={tituloEditado}
+                onChange={(e) => setTituloEditado(e.target.value)}
+                className="input-field w-full"
+                maxLength={200}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleGuardarTitulo}
+                  disabled={guardandoTitulo}
+                  className="btn-primary text-sm"
+                >
+                  {guardandoTitulo ? 'Guardando...' : 'Guardar nombre'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelarEdicionTitulo}
+                  disabled={guardandoTitulo}
+                  className="btn-secondary text-sm"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
           <InformeCobroDetalleView
             datosDetalle={datosDetalle}
             titulo={informeSeleccionado.titulo}
-            subtitulo={`${formatFechaEU(informeSeleccionado.fecha_inicio)} – ${formatFechaEU(informeSeleccionado.fecha_fin)} • ${
-              informeSeleccionado.num_semanas === 1
-                ? '1 semana'
-                : `${informeSeleccionado.num_semanas} semanas`
-            }${informeSeleccionado.liquidacion_agrupada ? ' • Liquidación agrupada' : ''}`}
+            subtitulo={getSubtituloInformeGuardado(informeSeleccionado)}
             metaLine={`Guardado: ${formatFechaRegistro(informeSeleccionado.created_at)}`}
           />
         </div>
@@ -310,7 +410,10 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
         </div>
       ) : (
         <div className="space-y-3">
-          {informes.map((informe) => (
+          {informes.map((informe) => {
+            const periodo = formatPeriodoInformeResumen(informe.fecha_inicio, informe.fecha_fin);
+
+            return (
             <button
               key={informe.id}
               type="button"
@@ -327,9 +430,9 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
                       {formatFechaEU(informe.fecha_inicio)} – {formatFechaEU(informe.fecha_fin)}
                     </span>
                     <span>•</span>
-                    <span>
-                      {informe.num_semanas === 1 ? '1 semana' : `${informe.num_semanas} semanas`}
-                    </span>
+                    <span>{periodo.labelDias}</span>
+                    <span>•</span>
+                    <span>{periodo.labelSemanas}</span>
                     {informe.liquidacion_agrupada ? (
                       <>
                         <span>•</span>
@@ -344,12 +447,13 @@ function InformesGuardados({ contratos = [], informeIdInicial = null, onInformeI
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    {informe.num_semanas} sem.
+                    {periodo.labelSemanas}
                   </span>
                 </div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
 

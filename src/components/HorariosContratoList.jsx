@@ -1,5 +1,5 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
-import { Edit, Trash2, Calendar, Clock, DollarSign, FileCheck } from 'lucide-react';
+import { Edit, Trash2, Calendar, Clock, DollarSign, FileCheck, CheckCircle2, CircleDollarSign } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
@@ -11,7 +11,8 @@ import {
   formatDiasLaborables,
   agruparLiquidacionesContrato,
   encontrarDiasYaLiquidados,
-  contarDiasEnPeriodo
+  contarDiasEnPeriodo,
+  formatPeriodoInformeResumen
 } from '../utils/contratoHoras';
 import { formatFechaEUCorta, formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 
@@ -575,22 +576,55 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                       <div className="space-y-2">
                         {liquidacionesAgrupadas.map((grupo) => {
                           const refLiq = grupo.registros[0];
-                          const importeTotal = parseFloat(refLiq?.importe || 0);
                           const grupoKey = `${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`;
+                          const esPeriodoActual = grupo.periodoInicio === fechaInicio
+                            && grupo.periodoFin === fechaFin;
+                          const horasExtrasDisplay = esPeriodoActual && detalleContrato
+                            ? detalleContrato.horasExtras
+                            : parseFloat(refLiq?.horas_extras || 0);
+                          const importeDisplay = esPeriodoActual && detalleContrato
+                            ? detalleContrato.importe
+                            : parseFloat(refLiq?.importe || 0);
+                          const numDiasGrupo = grupo.numDias || formatPeriodoInformeResumen(
+                            grupo.periodoInicio,
+                            grupo.periodoFin
+                          ).numDias;
+                          const pagada = !!grupo.pagado;
 
                           return (
-                            <div key={grupoKey} className="bg-gray-50 rounded p-2 border border-gray-200 text-xs">
+                            <div
+                              key={grupoKey}
+                              className={`rounded p-2 border text-xs ${
+                                pagada
+                                  ? 'bg-green-50 border-green-200'
+                                  : 'bg-amber-50 border-amber-200'
+                              }`}
+                            >
                               <div className="flex justify-between items-center gap-2">
-                                <span className="font-medium text-green-700">Periodo liquidado</span>
+                                <span className={`inline-flex items-center gap-1 font-medium ${
+                                  pagada ? 'text-green-700' : 'text-amber-700'
+                                }`}>
+                                  {pagada ? (
+                                    <>
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      Pagado
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CircleDollarSign className="h-3 w-3" />
+                                      Pendiente de cobro
+                                    </>
+                                  )}
+                                </span>
                                 <span className="text-gray-500 text-right">
                                   {formatFechaEU(grupo.periodoInicio)} – {formatFechaEU(grupo.periodoFin)}
                                 </span>
                               </div>
                               <p className="text-gray-600 mt-1">
-                                {grupo.numDias} día{grupo.numDias !== 1 ? 's' : ''}
+                                {numDiasGrupo} día{numDiasGrupo !== 1 ? 's' : ''}
                                 {' • '}
-                                {refLiq ? `${parseFloat(refLiq.horas_extras).toFixed(2)}h extras` : ''}
-                                {importeTotal !== 0 && ` • ${formatEuro(importeTotal)}`}
+                                {horasExtrasDisplay.toFixed(2)}h extras
+                                {importeDisplay !== 0 && ` • ${formatEuro(importeDisplay)}`}
                               </p>
                             </div>
                           );

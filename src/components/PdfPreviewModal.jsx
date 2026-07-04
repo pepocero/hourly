@@ -1,12 +1,22 @@
-import React from 'react';
-import { X, Download } from 'lucide-react';
-import { downloadPdfBlob } from '../utils/pdfPreview';
+import React, { useMemo } from 'react';
+import { X, Download, FileText, ExternalLink } from 'lucide-react';
+import {
+  downloadPdfBlob,
+  abrirPdfEnNuevaPestana,
+  esDispositivoMovilPdf
+} from '../utils/pdfPreview';
 
 function PdfPreviewModal({ isOpen, preview, onClose, title = 'Vista previa del PDF' }) {
+  const esMovil = useMemo(() => esDispositivoMovilPdf(), []);
+
   if (!isOpen || !preview?.url) return null;
 
   const handleDownload = () => {
     downloadPdfBlob(preview.blob, preview.filename);
+  };
+
+  const handleAbrir = () => {
+    abrirPdfEnNuevaPestana(preview.blob, preview.filename);
   };
 
   return (
@@ -17,14 +27,35 @@ function PdfPreviewModal({ isOpen, preview, onClose, title = 'Vista previa del P
             {preview.title || title}
           </h2>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="btn-primary flex items-center gap-2 text-sm px-3 py-2"
-            >
-              <Download className="h-4 w-4" />
-              Descargar
-            </button>
+            {esMovil ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleAbrir}
+                  className="btn-primary flex items-center gap-2 text-sm px-3 py-2"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="btn-secondary flex items-center gap-2 text-sm px-3 py-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Descargar
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="btn-primary flex items-center gap-2 text-sm px-3 py-2"
+              >
+                <Download className="h-4 w-4" />
+                Descargar
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -35,13 +66,47 @@ function PdfPreviewModal({ isOpen, preview, onClose, title = 'Vista previa del P
             </button>
           </div>
         </div>
-        <div className="flex-1 min-h-0 bg-gray-100">
-          <iframe
-            src={preview.url}
-            title={preview.title || title}
-            className="w-full h-full min-h-[70vh] border-0"
-          />
-        </div>
+
+        {esMovil ? (
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 sm:p-10 text-center bg-gray-50">
+            <div className="p-4 bg-orange-100 rounded-full mb-4">
+              <FileText className="h-10 w-10 text-orange-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">PDF listo</h3>
+            <p className="text-sm text-gray-600 max-w-sm mb-6">
+              En el móvil la vista previa embebida no funciona bien. Usa{' '}
+              <strong>Abrir PDF</strong> para verlo en el navegador o{' '}
+              <strong>Descargar</strong> para guardarlo en el dispositivo.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+              <button
+                type="button"
+                onClick={handleAbrir}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+              >
+                <ExternalLink className="h-5 w-5" />
+                Abrir PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="btn-secondary w-full flex items-center justify-center gap-2 py-3"
+              >
+                <Download className="h-5 w-5" />
+                Descargar
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-4">{preview.filename}</p>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 bg-gray-100">
+            <iframe
+              src={preview.url}
+              title={preview.title || title}
+              className="w-full h-full min-h-[70vh] border-0"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

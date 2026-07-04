@@ -267,22 +267,29 @@ class PDFService {
     const summaryLines = [
       { label: 'Total horas', value: `${resumen.totalHoras.toFixed(1)}h`, highlight: false },
       { label: 'Horas extras', value: `${(resumen.totalHorasExtras || 0).toFixed(2)}h`, highlight: true },
-      { label: 'Importe extras', value: `€${resumen.totalGanancias.toFixed(2)}`, highlight: false },
+      { label: 'Importe extras', value: `€${resumen.totalGanancias.toFixed(2)}`, highlightImporte: true },
       { label: 'Registros', value: String(resumen.totalRegistros), highlight: false }
     ];
 
     this.doc.setFontSize(10);
-    summaryLines.forEach(({ label, value, highlight }) => {
+    summaryLines.forEach(({ label, value, highlight, highlightImporte }) => {
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(0, 0, 0);
       this.doc.text(label, 20, currentY);
-      if (highlight) {
+      if (highlightImporte) {
+        this.doc.setFontSize(12);
+        this.doc.setFont('helvetica', 'bold');
+      } else if (highlight) {
+        this.doc.setFontSize(10);
         this.doc.setFont('helvetica', 'bold');
         this.doc.setTextColor(...extrasColor);
+      } else {
+        this.doc.setFontSize(10);
       }
       this.doc.text(value, 52, currentY);
+      this.doc.setFontSize(10);
       this.doc.setTextColor(0, 0, 0);
-      currentY += 6;
+      currentY += highlightImporte ? 7 : 6;
     });
 
     this.summaryEndY = currentY + 6;
@@ -358,7 +365,12 @@ class PDFService {
       extrasX += this.doc.getTextWidth(extrasValue);
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(0, 0, 0);
-      this.doc.text(` • €${(subtotal.totalExtras || 0).toFixed(2)}`, extrasX, currentY);
+      this.doc.text(' • ', extrasX, currentY);
+      extrasX += this.doc.getTextWidth(' • ');
+      this.doc.setFontSize(11);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.text(`€${(subtotal.totalExtras || 0).toFixed(2)}`, extrasX, currentY);
+      this.doc.setFontSize(9);
 
       currentY += 12;
     });

@@ -394,6 +394,23 @@ export class DatabaseService {
     return await stmt.bind(userId, contratoId, fechaInicio, fechaCierre).run();
   }
 
+  async updateLiquidacionPeriodoPagado(userId, contratoId, fechaInicio, fechaCierre, pagado) {
+    const stmt = this.db.prepare(`
+      UPDATE liquidaciones_contrato
+      SET pagado = ?, fecha_pago = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END
+      WHERE user_id = ? AND contrato_id = ? AND tipo != 'ajuste'
+        AND fecha_inicio = ? AND fecha_cierre = ?
+    `);
+    return await stmt.bind(
+      pagado ? 1 : 0,
+      pagado ? 1 : 0,
+      userId,
+      contratoId,
+      fechaInicio,
+      fechaCierre
+    ).run();
+  }
+
   // ========== INFORMES GUARDADOS ==========
 
   async getInformesGuardados(userId, fechaInicio = null, fechaFin = null, contratoId = null) {
@@ -462,5 +479,14 @@ export class DatabaseService {
       DELETE FROM informes_guardados WHERE id = ? AND user_id = ?
     `);
     return await stmt.bind(informeId, userId).run();
+  }
+
+  async updateInformeGuardadoTitulo(userId, informeId, titulo) {
+    const stmt = this.db.prepare(`
+      UPDATE informes_guardados
+      SET titulo = ?
+      WHERE id = ? AND user_id = ?
+    `);
+    return await stmt.bind(titulo, informeId, userId).run();
   }
 }

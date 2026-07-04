@@ -348,6 +348,18 @@ class ApiService {
     return this.request(`/api/liquidaciones-contrato/ajuste-pendiente?${params.toString()}`);
   }
 
+  async setLiquidacionPeriodoPagado(contratoId, fechaInicio, fechaFin, pagado) {
+    return this.request('/api/liquidaciones-contrato/periodo/pagado', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        contrato_id: contratoId,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        pagado: !!pagado
+      }),
+    });
+  }
+
   async getInformesGuardados(fechaInicio = null, fechaFin = null, contratoId = null) {
     const params = new URLSearchParams();
     if (fechaInicio) params.append('fecha_inicio', fechaInicio);
@@ -371,6 +383,13 @@ class ApiService {
   async deleteInformeGuardado(informeId) {
     return this.request(`/api/informes-guardados/${informeId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async updateInformeGuardado(informeId, data) {
+    return this.request(`/api/informes-guardados/${informeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 }

@@ -726,7 +726,7 @@ function Informes({ navState = null, onNavConsumed }) {
         contrato_id: grupoInformeCobroModal.contratoId,
         fecha_inicio: inicio,
         fecha_fin: fin,
-        num_semanas: numDias,
+        num_semanas: contarSemanasEnPeriodo(inicio, fin),
         liquidacion_agrupada: true
       });
 

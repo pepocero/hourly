@@ -625,6 +625,11 @@ export function isLiquidacionAgrupada(liquidacion) {
   return valor === 1 || valor === true || valor === '1';
 }
 
+export function isLiquidacionPagada(liquidacion) {
+  const valor = liquidacion?.pagado;
+  return valor === 1 || valor === true || valor === '1';
+}
+
 export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
   const grupos = {};
 
@@ -647,6 +652,8 @@ export function agruparLiquidacionesContrato(liquidaciones, contratos = []) {
         agrupada: isLiquidacionAgrupada(liq) || inicio !== liq.semana_lunes,
         semanaLunes: liq.semana_lunes,
         semanaFin: getSundayOfWeek(liq.semana_lunes || inicio),
+        pagado: isLiquidacionPagada(liq),
+        fechaPago: liq.fecha_pago || null,
         registros: []
       };
     }
@@ -672,6 +679,21 @@ export function contarSemanasEnPeriodo(fechaInicio, fechaFin) {
 
 export function contarDiasEnPeriodo(fechaInicio, fechaFin) {
   return obtenerDiasEnRango(fechaInicio, fechaFin).length;
+}
+
+export function formatPeriodoInformeResumen(fechaInicio, fechaFin) {
+  const numDias = contarDiasEnPeriodo(fechaInicio, fechaFin);
+  const numSemanas = contarSemanasEnPeriodo(fechaInicio, fechaFin);
+  return {
+    numDias,
+    numSemanas,
+    labelDias: numDias === 1 ? '1 día' : `${numDias} días`,
+    labelSemanas: numSemanas === 1 ? '1 semana' : `${numSemanas} semanas`
+  };
+}
+
+export function getClavePeriodoLiquidacion(contratoId, periodoInicio, periodoFin) {
+  return `${contratoId}|${periodoInicio}|${periodoFin}`;
 }
 
 export function calcularSubtotalesPorContratoInforme(horariosContrato, fechaInicio, fechaFin) {

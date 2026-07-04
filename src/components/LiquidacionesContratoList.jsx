@@ -1,10 +1,10 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { FileCheck, Trash2, AlertCircle, Receipt, Eye, X } from 'lucide-react';
+import { FileCheck, Trash2, AlertCircle, Receipt, Eye, X, CheckCircle2, CircleDollarSign } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import InformeCobroDetalleView from './InformeCobroDetalleView';
-import { agruparLiquidacionesContrato, contarDiasEnPeriodo, buildInformeContratosSnapshot } from '../utils/contratoHoras';
+import { agruparLiquidacionesContrato, contarDiasEnPeriodo, contarSemanasEnPeriodo, buildInformeContratosSnapshot, calcularLiquidacionPeriodo, getClavePeriodoLiquidacion, formatPeriodoInformeResumen } from '../utils/contratoHoras';
 import { formatFechaEU, formatFechaRegistro, formatEuro } from '../utils/formatFecha';
 import { generarTituloInformeCobro, buildSnapshotContratosPDF } from '../utils/informeGuardado';
 import { revokePdfPreview } from '../utils/pdfPreview';
@@ -14,12 +14,14 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
   const [liquidaciones, setLiquidaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [anulandoKey, setAnulandoKey] = useState(null);
+  const [pagadoUpdatingKey, setPagadoUpdatingKey] = useState(null);
   const [grupoToAnular, setGrupoToAnular] = useState(null);
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
   const [grupoInformeModal, setGrupoInformeModal] = useState(null);
   const [procesandoInforme, setProcesandoInforme] = useState(false);
   const [snapshotDetalle, setSnapshotDetalle] = useState(null);
+  const [resumenesPeriodo, setResumenesPeriodo] = useState({});
   const [pdfPreview, setPdfPreview] = useState(null);
 
   const abrirVistaPreviaPdf = (preview, title) => {
@@ -118,7 +120,7 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
         contrato_id: grupoInformeModal.contratoId,
         fecha_inicio: inicio,
         fecha_fin: fin,
-        num_semanas: numDias,
+        num_semanas: contarSemanasEnPeriodo(inicio, fin),
         liquidacion_agrupada: true
       });
 
@@ -157,6 +159,57 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
     loadLiquidaciones();
   }, [contratoId, fechaInicio, fechaFin]);
 
+  useEffect(() => {
+    if (!liquidaciones.length) {
+      setResumenesPeriodo({});
+      return undefined;
+    }
+
+    let cancelled = false;
+    const grupos = agruparLiquidacionesContrato(liquidaciones, contratos || []);
+
+    (async () => {
+      const entries = await Promise.all(
+        grupos.map(async (grupo) => {
+          const clave = getClavePeriodoLiquidacion(
+            grupo.contratoId,
+            grupo.periodoInicio,
+            grupo.periodoFin
+          );
+          try {
+            const horariosRes = await apiService.getHorariosContrato(
+              grupo.contratoId,
+              grupo.periodoInicio,
+              grupo.periodoFin,
+              true
+            );
+            const horarios = horariosRes.data || [];
+            if (horarios.length === 0) return [clave, null];
+
+            const contrato = (contratos || []).find((c) => c.id === grupo.contratoId) || horarios[0];
+            const resumen = calcularLiquidacionPeriodo(
+              horarios,
+              contrato,
+              grupo.periodoInicio,
+              grupo.periodoFin
+            );
+            return [clave, resumen];
+          } catch {
+            return [clave, null];
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setResumenesPeriodo(Object.fromEntries(entries));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [liquidaciones, contratos]);
+
   const loadLiquidaciones = async () => {
     try {
       setLoading(true);
@@ -194,6 +247,57 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
   const handleAnularClick = (grupo) => {
     setGrupoToAnular(grupo);
     setShowAnularModal(true);
+  };
+
+  const handleTogglePagado = async (grupo) => {
+    const key = `${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`;
+    const nuevoEstado = !grupo.pagado;
+    setPagadoUpdatingKey(key);
+
+    try {
+      const response = await apiService.setLiquidacionPeriodoPagado(
+        grupo.contratoId,
+        grupo.periodoInicio,
+        grupo.periodoFin,
+        nuevoEstado
+      );
+      if (response.success) {
+        setLiquidaciones((prev) =>
+          prev.map((liq) => {
+            if (
+              liq.contrato_id === grupo.contratoId
+              && liq.fecha_inicio === grupo.periodoInicio
+              && liq.fecha_cierre === grupo.periodoFin
+              && liq.tipo !== 'ajuste'
+            ) {
+              return {
+                ...liq,
+                pagado: nuevoEstado ? 1 : 0,
+                fecha_pago: nuevoEstado ? new Date().toISOString() : null
+              };
+            }
+            return liq;
+          })
+        );
+        if (onDataChange) onDataChange();
+      } else {
+        setAlertModal({
+          isOpen: true,
+          title: 'Error al actualizar',
+          message: response.error || 'No se pudo actualizar el estado de cobro.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Error al actualizar',
+        message: 'No se pudo actualizar el estado de cobro. Inténtalo de nuevo.',
+        type: 'error'
+      });
+    } finally {
+      setPagadoUpdatingKey(null);
+    }
   };
 
   const handleAnularConfirm = async () => {
@@ -261,7 +365,8 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
       <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
         <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-900">
-          Cada liquidación cubre un periodo de fechas. Puedes anularla si se registró por error.
+          Cada liquidación cubre un periodo de fechas. Marca como pagado cuando hayas cobrado el periodo.
+          Puedes anularla si se registró por error.
         </p>
       </div>
 
@@ -269,17 +374,31 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
         {grupos.map((grupo) => {
           const key = `${grupo.contratoId}-${grupo.periodoInicio}-${grupo.periodoFin}`;
           const refLiq = grupo.registros[0];
-          const importeTotal = parseFloat(refLiq?.importe || 0);
-          const horasExtras = refLiq ? parseFloat(refLiq.horas_extras || 0) : 0;
-          const numDias = grupo.numDias || contarDiasEnPeriodo(grupo.periodoInicio, grupo.periodoFin);
+          const claveResumen = getClavePeriodoLiquidacion(
+            grupo.contratoId,
+            grupo.periodoInicio,
+            grupo.periodoFin
+          );
+          const resumenCalc = resumenesPeriodo[claveResumen];
+          const periodoMeta = formatPeriodoInformeResumen(grupo.periodoInicio, grupo.periodoFin);
+          const importeTotal = resumenCalc?.importe ?? parseFloat(refLiq?.importe || 0);
+          const horasExtras = resumenCalc?.horasExtras ?? parseFloat(refLiq?.horas_extras || 0);
+          const horasTrabajadas = resumenCalc?.horasTrabajadas ?? parseFloat(refLiq?.horas_trabajadas || 0);
+          const horasContrato = resumenCalc?.horasEsperadas ?? parseFloat(refLiq?.horas_esperadas || 0);
+          const numDias = grupo.numDias || periodoMeta.numDias;
+          const pagada = !!grupo.pagado;
 
           return (
             <div
               key={key}
-              className="border border-gray-200 rounded-lg overflow-hidden"
+              className={`border rounded-lg overflow-hidden ${
+                pagada
+                  ? 'border-green-200 bg-green-50/30'
+                  : 'border-amber-200 bg-amber-50/20'
+              }`}
               style={{ borderLeftWidth: '4px', borderLeftColor: grupo.contratoColor }}
             >
-              <div className="bg-gray-50 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="bg-gray-50/80 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <div className="flex items-center space-x-2 flex-wrap gap-1">
                     <div
@@ -287,6 +406,25 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                       style={{ backgroundColor: grupo.contratoColor }}
                     />
                     <span className="font-medium text-gray-900">{grupo.contratoNombre}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                        pagada
+                          ? 'bg-green-100 text-green-800 border-green-200'
+                          : 'bg-amber-100 text-amber-800 border-amber-200'
+                      }`}
+                    >
+                      {pagada ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3" />
+                          Pagado
+                        </>
+                      ) : (
+                        <>
+                          <CircleDollarSign className="h-3 w-3" />
+                          Pendiente de cobro
+                        </>
+                      )}
+                    </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
                     Periodo {formatFechaEU(grupo.periodoInicio)} – {formatFechaEU(grupo.periodoFin)}
@@ -299,6 +437,29 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePagado(grupo)}
+                    disabled={pagadoUpdatingKey === key}
+                    className={`flex items-center justify-center gap-2 text-sm w-full sm:w-auto px-3 py-2 rounded-lg border font-medium transition-colors ${
+                      pagada
+                        ? 'text-amber-800 border-amber-200 bg-white hover:bg-amber-50'
+                        : 'text-green-800 border-green-200 bg-white hover:bg-green-50'
+                    }`}
+                    title={pagada ? 'Marcar como pendiente de cobro' : 'Marcar como pagado'}
+                  >
+                    {pagada ? (
+                      <>
+                        <CircleDollarSign className="h-4 w-4" />
+                        <span>{pagadoUpdatingKey === key ? 'Actualizando...' : 'Marcar pendiente'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>{pagadoUpdatingKey === key ? 'Actualizando...' : 'Marcar pagado'}</span>
+                      </>
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleInformeCobroClick(grupo)}
@@ -321,10 +482,16 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
 
               <div className="px-3 sm:px-4 py-2 text-xs text-gray-500 border-t border-gray-100">
                 Registrada: {formatFechaRegistro(refLiq?.created_at)}
+                {pagada && grupo.fechaPago && (
+                  <>
+                    {' • '}
+                    Pagada: {formatFechaRegistro(grupo.fechaPago)}
+                  </>
+                )}
                 {' • '}
-                {parseFloat(refLiq?.horas_trabajadas || 0).toFixed(2)}h trab.
+                {horasTrabajadas.toFixed(2)}h trab.
                 {' / '}
-                {parseFloat(refLiq?.horas_esperadas || 0).toFixed(2)}h contrato
+                {horasContrato.toFixed(2)}h contrato
               </div>
             </div>
           );
