@@ -391,26 +391,26 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
           return (
             <div
               key={key}
-              className={`border rounded-lg overflow-hidden ${
+              className={`border rounded-lg overflow-hidden transition-colors ${
                 pagada
-                  ? 'border-green-200 bg-green-50/30'
-                  : 'border-amber-200 bg-amber-50/20'
+                  ? 'border-green-400 bg-green-200 text-green-950'
+                  : 'border-amber-400 bg-amber-100 text-gray-900'
               }`}
               style={{ borderLeftWidth: '4px', borderLeftColor: grupo.contratoColor }}
             >
-              <div className="bg-gray-50/80 px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="px-3 sm:px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <div className="flex items-center space-x-2 flex-wrap gap-1">
                     <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: grupo.contratoColor }}
                     />
-                    <span className="font-medium text-gray-900">{grupo.contratoNombre}</span>
+                    <span className="font-medium">{grupo.contratoNombre}</span>
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
                         pagada
-                          ? 'bg-green-100 text-green-800 border-green-200'
-                          : 'bg-amber-100 text-amber-800 border-amber-200'
+                          ? 'bg-green-300 text-green-950 border-green-500'
+                          : 'bg-amber-200 text-amber-900 border-amber-300'
                       }`}
                     >
                       {pagada ? (
@@ -426,10 +426,10 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                       )}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className={`text-sm mt-1 ${pagada ? 'text-green-950/85' : 'text-gray-700'}`}>
                     Periodo {formatFechaEU(grupo.periodoInicio)} – {formatFechaEU(grupo.periodoFin)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className={`text-xs mt-1 ${pagada ? 'text-green-900/75' : 'text-gray-600'}`}>
                     {numDias} día{numDias !== 1 ? 's' : ''}
                     {' • '}
                     {horasExtras.toFixed(2)}h extras
@@ -480,7 +480,11 @@ const LiquidacionesContratoList = forwardRef(({ contratoId, fechaInicio, fechaFi
                 </div>
               </div>
 
-              <div className="px-3 sm:px-4 py-2 text-xs text-gray-500 border-t border-gray-100">
+              <div
+                className={`px-3 sm:px-4 py-2 text-xs border-t ${
+                  pagada ? 'border-green-500/40 text-green-900/80' : 'border-amber-300 text-gray-700'
+                }`}
+              >
                 Registrada: {formatFechaRegistro(refLiq?.created_at)}
                 {pagada && grupo.fechaPago && (
                   <>
