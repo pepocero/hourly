@@ -12,7 +12,10 @@ import {
   agruparLiquidacionesContrato,
   encontrarDiasYaLiquidados,
   contarDiasEnPeriodo,
-  formatPeriodoInformeResumen
+  formatPeriodoInformeResumen,
+  obtenerMapaEstadoDiasLiquidacion,
+  obtenerEstadoDiaLiquidacion,
+  contarDiasPorEstadoLiquidacion
 } from '../utils/contratoHoras';
 import { formatFechaEUCorta, formatFechaEU, formatEuro, formatEuroPorHora } from '../utils/formatFecha';
 
@@ -27,6 +30,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
   const [horarioToDelete, setHorarioToDelete] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+  const [filtroEstadoLiquidacion, setFiltroEstadoLiquidacion] = useState('todos');
 
   const closeAlertModal = () => {
     setAlertModal({ isOpen: false, title: '', message: '', type: 'info' });
@@ -51,11 +55,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
   }, [contratoId, fechaInicio, fechaFin]);
 
   useEffect(() => {
-    if (fechaInicio && fechaFin) {
-      loadLiquidaciones();
-    } else {
-      setLiquidaciones([]);
-    }
+    loadLiquidaciones();
   }, [contratoId, fechaInicio, fechaFin, horarios.length]);
 
   useImperativeHandle(ref, () => ({
@@ -237,6 +237,47 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
     [liquidaciones, contratos]
   );
 
+  const mapaEstadoDiasLiquidacion = useMemo(
+    () => obtenerMapaEstadoDiasLiquidacion(liquidaciones, contratoId),
+    [liquidaciones, contratoId]
+  );
+
+  const contadoresEstadoLiquidacion = useMemo(
+    () => contarDiasPorEstadoLiquidacion(horarios, mapaEstadoDiasLiquidacion, contratoId),
+    [horarios, mapaEstadoDiasLiquidacion, contratoId]
+  );
+
+  const horariosFiltrados = useMemo(() => {
+    if (filtroEstadoLiquidacion === 'todos') return horarios;
+    return horarios.filter((horario) => {
+      const estado = obtenerEstadoDiaLiquidacion(
+        mapaEstadoDiasLiquidacion,
+        horario.contrato_id,
+        horario.fecha,
+        contratoId
+      );
+      if (filtroEstadoLiquidacion === 'pagado') return estado === 'pagado';
+      return estado !== 'pagado';
+    });
+  }, [horarios, filtroEstadoLiquidacion, mapaEstadoDiasLiquidacion, contratoId]);
+
+  const getEstilosEstadoLiquidacion = (estado) => {
+    if (estado === 'pagado') {
+      return {
+        card: 'bg-green-200 border-green-400 text-green-950',
+        badge: 'bg-green-300 text-green-950 border-green-500',
+        badgeLabel: 'Pagado',
+        badgeIcon: CheckCircle2
+      };
+    }
+    return {
+      card: 'bg-amber-100 border-amber-400 text-gray-900',
+      badge: 'bg-amber-200 text-amber-900 border-amber-300',
+      badgeLabel: 'Sin liquidar',
+      badgeIcon: CircleDollarSign
+    };
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -264,8 +305,55 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
 
   return (
     <>
+      <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1 sm:flex-initial sm:min-w-[220px]">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Estado de cobro
+            </label>
+            <select
+              value={filtroEstadoLiquidacion}
+              onChange={(e) => setFiltroEstadoLiquidacion(e.target.value)}
+              className="input-field text-sm py-1.5 px-2 w-full"
+            >
+              <option value="todos">
+                Todos los días ({contadoresEstadoLiquidacion.sin_liquidar + contadoresEstadoLiquidacion.pagado})
+              </option>
+              <option value="sin_liquidar">
+                Sin liquidar ({contadoresEstadoLiquidacion.sin_liquidar})
+              </option>
+              <option value="pagado">
+                Pagado ({contadoresEstadoLiquidacion.pagado})
+              </option>
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded border border-amber-400 bg-amber-100" />
+            Sin liquidar
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded border border-green-400 bg-green-200" />
+            Pagado
+          </span>
+        </div>
+      </div>
+
+      {horariosFiltrados.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p className="text-sm">No hay horarios que coincidan con el filtro seleccionado</p>
+          <button
+            type="button"
+            onClick={() => setFiltroEstadoLiquidacion('todos')}
+            className="mt-2 text-xs text-primary-600 hover:text-primary-800 underline"
+          >
+            Ver todos los días
+          </button>
+        </div>
+      ) : (
       <div className="space-y-2">
-        {horarios.map((horario) => {
+        {horariosFiltrados.map((horario) => {
           const keyDia = `${horario.contrato_id}-${horario.fecha}`;
           const registrosMismoDia = registrosPorDiaContrato[keyDia] || [horario];
           const contratoRef = resolverContratoHorario(horario, contratosMap);
@@ -273,11 +361,19 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
           const extrasFila = mostrarDetalleExtras
             ? calcularExtrasHorarioFila(horario, registrosMismoDia, contratoRef)
             : null;
+          const estadoLiquidacion = obtenerEstadoDiaLiquidacion(
+            mapaEstadoDiasLiquidacion,
+            horario.contrato_id,
+            horario.fecha,
+            contratoId
+          );
+          const estilosEstado = getEstilosEstadoLiquidacion(estadoLiquidacion);
+          const BadgeIcon = estilosEstado.badgeIcon;
 
           return (
           <div
             key={horario.id}
-            className="p-3 sm:p-4 bg-white border-l-4 border-r border-t border-b border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+            className={`p-3 sm:p-4 border-l-4 border-r border-t border-b rounded-lg hover:shadow-md transition-shadow ${estilosEstado.card}`}
             style={{ borderLeftColor: getContratoColor(horario.contrato_id) }}
           >
             <div className="flex items-start justify-between">
@@ -295,11 +391,19 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                       </span>
                     </div>
                   )}
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm font-medium text-gray-900">
-                      {formatDate(horario.fecha)}
-                    </span>
+                  <div className="flex items-center flex-wrap gap-2">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm font-medium">
+                        {formatDate(horario.fecha)}
+                      </span>
+                    </div>
+                    {estilosEstado.badge && BadgeIcon && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${estilosEstado.badge}`}>
+                        <BadgeIcon className="h-3 w-3" />
+                        {estilosEstado.badgeLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -419,6 +523,7 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
           );
         })}
       </div>
+      )}
 
       {/* Resumen de Horas Extras */}
       {resumenHorasExtras && fechaInicio && fechaFin && (
@@ -541,8 +646,20 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                   {detalleContrato?.dias?.length > 0 && (
                     <div className="bg-gray-50 rounded-lg p-2 border border-gray-200 max-h-40 overflow-y-auto">
                       <p className="text-xs font-medium text-gray-700 mb-1">Desglose por día</p>
-                      {detalleContrato.dias.map((dia) => (
-                        <div key={dia.fecha} className="flex justify-between text-xs text-gray-600 py-0.5">
+                      {detalleContrato.dias.map((dia) => {
+                        const estadoDia = obtenerEstadoDiaLiquidacion(
+                          mapaEstadoDiasLiquidacion,
+                          detalleContrato.contratoId,
+                          dia.fecha,
+                          contratoId
+                        );
+                        const estilosDia = getEstilosEstadoLiquidacion(estadoDia);
+
+                        return (
+                        <div
+                          key={dia.fecha}
+                          className={`flex justify-between text-xs py-0.5 px-1 rounded ${estilosDia.card}`}
+                        >
                           <span>{formatFechaEU(dia.fecha)}</span>
                           <span>
                             {dia.horasTrabajadas.toFixed(2)}h trab.
@@ -550,7 +667,8 @@ const HorariosContratoList = forwardRef(({ contratoId, fechaInicio, fechaFin, co
                             <span className="text-orange-600">{dia.horasExtras.toFixed(2)}h extras</span>
                           </span>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 

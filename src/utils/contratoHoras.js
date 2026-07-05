@@ -620,13 +620,66 @@ export function encontrarDiasYaLiquidados(liquidaciones, contratoId, fechaInicio
   );
 }
 
-export function isLiquidacionAgrupada(liquidacion) {
-  const valor = liquidacion?.liquidacion_agrupada;
+export function isLiquidacionPagada(liquidacion) {
+  const valor = liquidacion?.pagado;
   return valor === 1 || valor === true || valor === '1';
 }
 
-export function isLiquidacionPagada(liquidacion) {
-  const valor = liquidacion?.pagado;
+/** Mapa clave (fecha o contratoId-fecha) → 'pagado' | 'pendiente_cobro' */
+export function obtenerMapaEstadoDiasLiquidacion(liquidaciones, contratoIdFiltro = null) {
+  const mapa = {};
+  const relevantes = (liquidaciones || []).filter(
+    (l) => l.tipo !== 'ajuste'
+      && (contratoIdFiltro == null || l.contrato_id === contratoIdFiltro)
+  );
+
+  relevantes.forEach((liq) => {
+    const estado = isLiquidacionPagada(liq) ? 'pagado' : 'pendiente_cobro';
+    obtenerDiasEnRango(liq.fecha_inicio, liq.fecha_cierre).forEach((dia) => {
+      const clave = contratoIdFiltro != null ? dia : `${liq.contrato_id}-${dia}`;
+      if (mapa[clave] !== 'pagado') {
+        mapa[clave] = estado;
+      }
+    });
+  });
+
+  return mapa;
+}
+
+export function obtenerEstadoDiaLiquidacion(mapa, contratoId, fecha, contratoIdFiltro = null) {
+  const clave = contratoIdFiltro != null ? fecha : `${contratoId}-${fecha}`;
+  return mapa[clave] || 'sin_liquidar';
+}
+
+export function contarDiasPorEstadoLiquidacion(horarios, mapa, contratoIdFiltro = null) {
+  const diasUnicos = new Set();
+  const contadores = { sin_liquidar: 0, pagado: 0 };
+
+  (horarios || []).forEach((h) => {
+    const claveDia = contratoIdFiltro != null
+      ? h.fecha
+      : `${h.contrato_id}-${h.fecha}`;
+    if (diasUnicos.has(claveDia)) return;
+    diasUnicos.add(claveDia);
+
+    const estado = obtenerEstadoDiaLiquidacion(
+      mapa,
+      h.contrato_id,
+      h.fecha,
+      contratoIdFiltro
+    );
+    if (estado === 'pagado') {
+      contadores.pagado += 1;
+    } else {
+      contadores.sin_liquidar += 1;
+    }
+  });
+
+  return contadores;
+}
+
+export function isLiquidacionAgrupada(liquidacion) {
+  const valor = liquidacion?.liquidacion_agrupada;
   return valor === 1 || valor === true || valor === '1';
 }
 
