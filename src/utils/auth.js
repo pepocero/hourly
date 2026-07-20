@@ -20,12 +20,18 @@ export class AuthService {
   }
 
   // Generar JWT token
-  generateToken(userId, email) {
+  // rememberMe: true → 30 días; false → 24 horas
+  generateToken(userId, email, rememberMe = false) {
+    const expiresInSeconds = rememberMe
+      ? 30 * 24 * 60 * 60 // 30 días
+      : 24 * 60 * 60; // 24 horas
+
     const payload = {
       userId,
       email,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 horas
+      exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+      rememberMe: !!rememberMe
     };
     
     return jwt.sign(payload, this.jwtSecret);

@@ -23,9 +23,10 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const rememberMe = localStorage.getItem('rememberMe') === 'true';
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
       if (token) {
-        apiService.setToken(token);
+        apiService.setToken(token, rememberMe || !!localStorage.getItem('token'));
         // Agregar timeout para no bloquear la carga si la API no responde
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), 5000)
@@ -45,10 +46,9 @@ export function AuthProvider({ children }) {
             apiService.setToken(null);
           }
         } catch (timeoutError) {
-          // Si hay timeout o error de conexión, simplemente no autenticar
-          // pero permitir que la página se cargue
+          // Si hay timeout o error de conexión, no borrar el token:
+          // con "Recuérdame" debe persistir para reintentar en la siguiente carga
           console.warn('No se pudo verificar el token (API no disponible):', timeoutError);
-          apiService.setToken(null);
         }
       }
     } catch (error) {
@@ -60,9 +60,9 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
-      const response = await apiService.login(email, password);
+      const response = await apiService.login(email, password, rememberMe);
       if (response.success) {
         setUser(response.data.user);
         setIsAuthenticated(true);

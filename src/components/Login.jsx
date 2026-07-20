@@ -7,6 +7,7 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -17,7 +18,7 @@ function Login() {
     setLoading(true);
     setError('');
 
-    const result = await login(email, password);
+    const result = await login(email, password, rememberMe);
     
     if (!result.success) {
       setError(result.error);
@@ -100,6 +101,21 @@ function Login() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Recuérdame */}
+          <div className="flex items-center">
+            <input
+              id="rememberMe"
+              name="rememberMe"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+              Recuérdame
+            </label>
           </div>
 
           {/* Error message */}

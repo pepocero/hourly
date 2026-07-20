@@ -268,7 +268,7 @@ export default {
 
       if (url.pathname === '/auth/login' && request.method === 'POST') {
         try {
-          const { email, password } = await request.json();
+          const { email, password, rememberMe = false } = await request.json();
 
           if (!email || !password) {
             return new Response(JSON.stringify({ 
@@ -313,8 +313,8 @@ export default {
             });
           }
 
-          // Generar token JWT
-          const token = await authService.generateToken(user.id, user.email);
+          // Generar token JWT (30 días si rememberMe, 24 h en caso contrario)
+          const token = await authService.generateToken(user.id, user.email, !!rememberMe);
           
           return new Response(JSON.stringify({
             success: true,

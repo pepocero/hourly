@@ -41,17 +41,23 @@ export class CryptoAuthService {
   }
 
   // Generar JWT token usando Web Crypto API
-  async generateToken(userId, email) {
+  // rememberMe: true → 30 días; false → 24 horas
+  async generateToken(userId, email, rememberMe = false) {
     const header = {
       alg: 'HS256',
       typ: 'JWT'
     };
 
+    const expiresInSeconds = rememberMe
+      ? 30 * 24 * 60 * 60 // 30 días
+      : 24 * 60 * 60; // 24 horas
+
     const payload = {
       userId,
       email,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 horas
+      exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+      rememberMe: !!rememberMe
     };
 
     const encodedHeader = this.base64UrlEncode(JSON.stringify(header));

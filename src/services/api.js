@@ -5,16 +5,25 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.token = localStorage.getItem('token');
+    this.token = localStorage.getItem('token') || sessionStorage.getItem('token');
   }
 
   // Actualizar token
-  setToken(token) {
+  // rememberMe: true → localStorage (persiste al cerrar el navegador)
+  // rememberMe: false → sessionStorage (se limpia al cerrar la pestaña/navegador)
+  setToken(token, rememberMe = true) {
     this.token = token;
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
+    localStorage.removeItem('rememberMe');
+
     if (token) {
-      localStorage.setItem('token', token);
-    } else {
-      localStorage.removeItem('token');
+      if (rememberMe) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        sessionStorage.setItem('token', token);
+      }
     }
   }
 
@@ -93,14 +102,14 @@ class ApiService {
     });
   }
 
-  async login(email, password) {
+  async login(email, password, rememberMe = false) {
     const response = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe: !!rememberMe }),
     });
 
     if (response.success && response.data.token) {
-      this.setToken(response.data.token);
+      this.setToken(response.data.token, !!rememberMe);
     }
 
     return response;
