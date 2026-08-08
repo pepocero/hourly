@@ -51,7 +51,7 @@ export function createAuthRoutes(db, jwtSecret) {
     // Login de usuario
     async login(request) {
       try {
-        const { email, password, rememberMe = false } = await request.json();
+        const { email, password, rememberMe = true } = await request.json();
 
         if (!email || !password) {
           return createErrorResponse('Email y contraseña son requeridos');
@@ -69,7 +69,7 @@ export function createAuthRoutes(db, jwtSecret) {
           return createErrorResponse('Credenciales inválidas');
         }
 
-        // Generar token JWT (30 días si rememberMe, 24 h en caso contrario)
+        // Generar token JWT (90 días si rememberMe, 24 h en caso contrario)
         const token = authService.generateToken(user.id, user.email, !!rememberMe);
 
         // Retornar datos del usuario sin la contraseña

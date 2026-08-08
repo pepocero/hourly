@@ -41,7 +41,7 @@ export class CryptoAuthService {
   }
 
   // Generar JWT token usando Web Crypto API
-  // rememberMe: true → 30 días; false → 24 horas
+  // rememberMe: true → 90 días; false → 24 horas
   async generateToken(userId, email, rememberMe = false) {
     const header = {
       alg: 'HS256',
@@ -49,7 +49,7 @@ export class CryptoAuthService {
     };
 
     const expiresInSeconds = rememberMe
-      ? 30 * 24 * 60 * 60 // 30 días
+      ? 90 * 24 * 60 * 60 // 90 días (sesión persistente / PWA)
       : 24 * 60 * 60; // 24 horas
 
     const payload = {

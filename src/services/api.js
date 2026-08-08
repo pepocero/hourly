@@ -9,7 +9,7 @@ class ApiService {
   }
 
   // Actualizar token
-  // rememberMe: true → localStorage (persiste al cerrar el navegador)
+  // rememberMe: true → localStorage (persiste al cerrar el navegador / PWA)
   // rememberMe: false → sessionStorage (se limpia al cerrar la pestaña/navegador)
   setToken(token, rememberMe = true) {
     this.token = token;
@@ -24,6 +24,9 @@ class ApiService {
       } else {
         sessionStorage.setItem('token', token);
       }
+    } else {
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('user');
     }
   }
 
@@ -102,14 +105,15 @@ class ApiService {
     });
   }
 
-  async login(email, password, rememberMe = false) {
+  async login(email, password, rememberMe = true) {
+    const persist = !!rememberMe;
     const response = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, rememberMe: !!rememberMe }),
+      body: JSON.stringify({ email, password, rememberMe: persist }),
     });
 
     if (response.success && response.data.token) {
-      this.setToken(response.data.token, !!rememberMe);
+      this.setToken(response.data.token, persist);
     }
 
     return response;

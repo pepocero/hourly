@@ -2,7 +2,7 @@
   "name": "Hourly - Control de Horas de Trabajo",
   "short_name": "Hourly",
   "description": "Aplicación para control de horas de trabajo para freelancers",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ea580c",

@@ -4,23 +4,25 @@ import { useAuth } from '../contexts/AuthContext';
 import { Clock, Users, BarChart3, Shield, Zap, Star } from 'lucide-react';
 
 const LandingPage = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const navigate = useNavigate();
 
   // Si el usuario ya está logueado, redirigir al dashboard
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!loading && isAuthenticated) {
       navigate('/dashboard');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, loading, navigate]);
 
-  // Si está cargando la autenticación, mostrar loading
-  if (isAuthenticated) {
+  // Esperar restauración de sesión / redirección si ya hay login
+  if (loading || isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirigiendo al dashboard...</p>
+          <p className="text-gray-600">
+            {isAuthenticated ? 'Redirigiendo al dashboard...' : 'Cargando sesión...'}
+          </p>
         </div>
       </div>
     );

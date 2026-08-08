@@ -20,10 +20,10 @@ export class AuthService {
   }
 
   // Generar JWT token
-  // rememberMe: true → 30 días; false → 24 horas
+  // rememberMe: true → 90 días; false → 24 horas
   generateToken(userId, email, rememberMe = false) {
     const expiresInSeconds = rememberMe
-      ? 30 * 24 * 60 * 60 // 30 días
+      ? 90 * 24 * 60 * 60 // 90 días (sesión persistente / PWA)
       : 24 * 60 * 60; // 24 horas
 
     const payload = {

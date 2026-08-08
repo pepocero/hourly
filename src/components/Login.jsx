@@ -7,7 +7,7 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -103,7 +103,7 @@ function Login() {
             </div>
           </div>
 
-          {/* Recuérdame */}
+          {/* Recuérdame: guarda la sesión en el dispositivo (necesario en la app instalada) */}
           <div className="flex items-center">
             <input
               id="rememberMe"
@@ -114,7 +114,7 @@ function Login() {
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
             <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-              Recuérdame
+              Recuérdame en este dispositivo
             </label>
           </div>
 

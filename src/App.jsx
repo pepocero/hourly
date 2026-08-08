@@ -48,15 +48,28 @@ function registerServiceWorker() {
   */
 }
 
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Cargando sesión...</p>
+      </div>
+    </div>
+  );
+}
+
 // Componente para rutas protegidas
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/" />;
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <AuthLoadingScreen />;
+  return isAuthenticated ? children : <Navigate to="/login" />;
 }
 
 // Componente para rutas públicas (solo para usuarios no autenticados)
 function PublicRoute({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <AuthLoadingScreen />;
   return !isAuthenticated ? children : <Navigate to="/dashboard" />;
 }
 
