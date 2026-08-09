@@ -44,6 +44,20 @@ export function contarDiasLaborablesConfig(bitmask) {
   return parseDiasLaborables(bitmask).length;
 }
 
+/** Horas por día = horas semanales / días laborables marcados. */
+export function calcularHorasPorDiaDesdeSemanales(horasSemanales, diasLaborables) {
+  const numDias = contarDiasLaborablesConfig(diasLaborables);
+  const horas = parseFloat(horasSemanales) || 0;
+  if (numDias <= 0 || horas <= 0) return 0;
+  return Math.round((horas / numDias) * 10000) / 10000;
+}
+
+export function formatHorasPorDiaDisplay(horasPorDia) {
+  const n = parseFloat(horasPorDia);
+  if (!n || Number.isNaN(n) || n <= 0) return '';
+  return parseFloat(n.toFixed(4)).toString();
+}
+
 export function validarHorasContrato(horasSemanales, horasPorDia, diasLaborables) {
   const numDias = contarDiasLaborablesConfig(diasLaborables);
   if (numDias === 0) {

@@ -8,14 +8,22 @@ import {
   DIAS_LABORABLES_DEFAULT,
   formatDiasLaborables,
   contarDiasLaborablesConfig,
+  calcularHorasPorDiaDesdeSemanales,
+  formatHorasPorDiaDisplay,
   validarHorasContrato
 } from '../utils/contratoHoras';
+
+function buildHorasPorDia(horasSemanales, diasLaborables) {
+  return formatHorasPorDiaDisplay(
+    calcularHorasPorDiaDesdeSemanales(horasSemanales, diasLaborables)
+  );
+}
 
 function ContratoForm({ contrato, onClose, onSave }) {
   const [formData, setFormData] = useState({
     nombre: '',
     horas_semanales: '40',
-    horas_por_dia: '8',
+    horas_por_dia: buildHorasPorDia('40', DIAS_LABORABLES_DEFAULT),
     valor_hora_extra: '0',
     color: '#8b5cf6',
     dias_laborables: DIAS_LABORABLES_DEFAULT
@@ -42,19 +50,19 @@ function ContratoForm({ contrato, onClose, onSave }) {
   const numDiasLaborables = contarDiasLaborablesConfig(formData.dias_laborables);
   const horasSemanalesNum = parseFloat(formData.horas_semanales) || 0;
   const horasPorDiaNum = parseFloat(formData.horas_por_dia) || 0;
-  const totalCalculado = horasPorDiaNum * numDiasLaborables;
-  const cuadraHoras = numDiasLaborables > 0 && Math.abs(totalCalculado - horasSemanalesNum) <= 0.01;
+  const cuadraHoras = numDiasLaborables > 0 && horasSemanalesNum > 0 && horasPorDiaNum > 0;
 
   useEffect(() => {
     if (contrato) {
       const dias = contrato.dias_laborables ?? DIAS_LABORABLES_DEFAULT;
       const horasSem = parseFloat(contrato.horas_semanales) || 40;
-      const horasDia = contrato.horas_por_dia
-        ?? (contarDiasLaborablesConfig(dias) > 0 ? horasSem / contarDiasLaborablesConfig(dias) : 8);
+      const horasDia = calcularHorasPorDiaDesdeSemanales(horasSem, dias)
+        || parseFloat(contrato.horas_por_dia)
+        || 0;
       const data = {
         nombre: contrato.nombre || '',
         horas_semanales: horasSem.toString(),
-        horas_por_dia: parseFloat(horasDia).toString(),
+        horas_por_dia: formatHorasPorDiaDisplay(horasDia),
         valor_hora_extra: contrato.valor_hora_extra?.toString() || '0',
         color: contrato.color || '#8b5cf6',
         dias_laborables: dias
@@ -65,7 +73,7 @@ function ContratoForm({ contrato, onClose, onSave }) {
       const data = {
         nombre: '',
         horas_semanales: '40',
-        horas_por_dia: '8',
+        horas_por_dia: buildHorasPorDia('40', DIAS_LABORABLES_DEFAULT),
         valor_hora_extra: '0',
         color: '#8b5cf6',
         dias_laborables: DIAS_LABORABLES_DEFAULT
@@ -77,9 +85,20 @@ function ContratoForm({ contrato, onClose, onSave }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    setFormData((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === 'horas_semanales') {
+        next.horas_por_dia = buildHorasPorDia(value, prev.dias_laborables);
+      }
+      return next;
+    });
+  };
+
+  const handleDiasLaborablesChange = (dias_laborables) => {
     setFormData((prev) => ({
       ...prev,
-      [name]: value
+      dias_laborables,
+      horas_por_dia: buildHorasPorDia(prev.horas_semanales, dias_laborables)
     }));
   };
 
@@ -88,7 +107,10 @@ function ContratoForm({ contrato, onClose, onSave }) {
     setError('');
 
     const horasSemanales = parseFloat(formData.horas_semanales);
-    const horasPorDia = parseFloat(formData.horas_por_dia);
+    const horasPorDia = calcularHorasPorDiaDesdeSemanales(
+      horasSemanales,
+      formData.dias_laborables
+    );
     const validacion = validarHorasContrato(
       horasSemanales,
       horasPorDia,
@@ -178,12 +200,13 @@ function ContratoForm({ contrato, onClose, onSave }) {
             <label className="form-label">Días laborables del contrato *</label>
             <DiasLaborablesPicker
               value={formData.dias_laborables}
-              onChange={(dias_laborables) => setFormData((prev) => ({ ...prev, dias_laborables }))}
+              onChange={handleDiasLaborablesChange}
               color={formData.color}
             />
             <p className="text-xs text-gray-500 mt-2">
-              Días habituales del contrato para calcular horas esperadas ({formatDiasLaborables(formData.dias_laborables)}).
-              Si trabajas otro día (p. ej. domingo porque tu día libre es otro), también se descontarán las horas por día del contrato al calcular extras.
+              Marca los días de trabajo ({formatDiasLaborables(formData.dias_laborables) || 'ninguno'}).
+              Los días sin marcar (fiesta o descanso) no entran en el reparto de horas semanales
+              ni como base del cálculo de horas extras.
             </p>
           </div>
 
@@ -203,28 +226,30 @@ function ContratoForm({ contrato, onClose, onSave }) {
               />
             </div>
             <div>
-              <label htmlFor="horas_por_dia" className="form-label">Horas por día *</label>
+              <label htmlFor="horas_por_dia" className="form-label">Horas por día</label>
               <input
-                type="number"
-                step="0.5"
+                type="text"
                 id="horas_por_dia"
                 name="horas_por_dia"
-                required
-                min="0"
-                value={formData.horas_por_dia}
-                onChange={handleChange}
-                className="input-field"
+                readOnly
+                tabIndex={-1}
+                value={formData.horas_por_dia ? `${formData.horas_por_dia}` : '—'}
+                className="input-field bg-gray-50 text-gray-700 cursor-default"
+                aria-readonly="true"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Calculado automáticamente
+              </p>
             </div>
           </div>
 
           <div className={`text-xs rounded-lg p-2 border ${cuadraHoras ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
-            {numDiasLaborables > 0 ? (
-              cuadraHoras
-                ? `${horasPorDiaNum}h/día × ${numDiasLaborables} días = ${horasSemanalesNum}h semanales`
-                : `${horasPorDiaNum}h/día × ${numDiasLaborables} días = ${totalCalculado.toFixed(1)}h, pero las horas semanales son ${horasSemanalesNum}h`
-            ) : (
+            {numDiasLaborables > 0 && horasSemanalesNum > 0 ? (
+              `${horasSemanalesNum}h semanales ÷ ${numDiasLaborables} días = ${horasPorDiaNum}h/día`
+            ) : numDiasLaborables === 0 ? (
               'Selecciona al menos un día laborable'
+            ) : (
+              'Indica las horas semanales del contrato'
             )}
           </div>
 
