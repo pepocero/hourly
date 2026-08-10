@@ -323,6 +323,7 @@ function Contratos({ onNavigateToInformes }) {
         <HorarioContratoForm 
           horario={editingHorario}
           contratoId={contratoSeleccionado.id}
+          contratos={contratos}
           onClose={() => {
             setShowHorarioForm(false);
             setEditingHorario(null);

@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Clock } from 'lucide-react';
 import apiService from '../services/api';
 import ConfirmModal from './ConfirmModal';
 import { formatFechaEU } from '../utils/formatFecha';
 import { useFormConfirmations } from '../hooks/useFormConfirmations';
+import {
+  calcularDuracionMinutosDesdeHoras,
+  calcularHorasPorDiaDesdeSemanales,
+  formatHorasInformeTabla
+} from '../utils/contratoHoras';
 
 function HorarioContratoForm({
   horario,
@@ -75,6 +80,57 @@ function HorarioContratoForm({
   }, [horario, resetSnapshot, fechaMin]);
 
   const contratoId = contratoIdProp || (contratoSeleccionado ? parseInt(contratoSeleccionado, 10) : null);
+
+  const contratoActual = useMemo(() => {
+    if (!contratoId || !contratos?.length) return null;
+    return contratos.find((c) => String(c.id) === String(contratoId)) || null;
+  }, [contratoId, contratos]);
+
+  const resumenConfirmacion = useMemo(() => {
+    const minutosTurno = (formData.hora_entrada && formData.hora_salida)
+      ? calcularDuracionMinutosDesdeHoras(formData.hora_entrada, formData.hora_salida)
+      : 0;
+    const horasTrabajadas = minutosTurno / 60;
+    const esDiaSueltoRegistro = !!(modoDiaSuelto || horario?.es_dia_suelto === 1 || horario?.es_dia_suelto === true);
+
+    if (!contratoActual) {
+      return {
+        horasTrabajadas,
+        horasPorDiaContrato: null,
+        horasExtras: null,
+        esDiaSuelto: esDiaSueltoRegistro
+      };
+    }
+
+    const horasPorDiaContrato = calcularHorasPorDiaDesdeSemanales(
+      contratoActual.horas_semanales,
+      contratoActual.dias_laborables
+    ) || parseFloat(contratoActual.horas_por_dia) || 0;
+
+    if (esDiaSueltoRegistro) {
+      return {
+        horasTrabajadas,
+        horasPorDiaContrato,
+        horasExtras: horasTrabajadas,
+        esDiaSuelto: true
+      };
+    }
+
+    const horasExtras = Math.max(0, horasTrabajadas - horasPorDiaContrato);
+
+    return {
+      horasTrabajadas,
+      horasPorDiaContrato,
+      horasExtras,
+      esDiaSuelto: false
+    };
+  }, [
+    formData.hora_entrada,
+    formData.hora_salida,
+    horario,
+    modoDiaSuelto,
+    contratoActual
+  ]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -366,6 +422,30 @@ function HorarioContratoForm({
               {terminaDiaSiguiente ? ' (+1 día)' : ''}
             </span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Horas trabajadas</span>
+            <span className="font-medium text-gray-900">
+              {formData.hora_salida
+                ? formatHorasInformeTabla(resumenConfirmacion.horasTrabajadas) || '0.00h'
+                : '—'}
+            </span>
+          </div>
+          {resumenConfirmacion.horasPorDiaContrato != null && !resumenConfirmacion.esDiaSuelto && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">Horas x día (según contrato)</span>
+              <span className="font-medium text-gray-900">
+                {formatHorasInformeTabla(resumenConfirmacion.horasPorDiaContrato) || '0.00h'}
+              </span>
+            </div>
+          )}
+          {resumenConfirmacion.horasExtras != null && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">Horas extras</span>
+              <span className={`font-medium ${resumenConfirmacion.horasExtras > 0 ? 'text-amber-700' : 'text-gray-900'}`}>
+                {formatHorasInformeTabla(resumenConfirmacion.horasExtras) || '0.00h'}
+              </span>
+            </div>
+          )}
         </div>
       </ConfirmModal>
     </div>
@@ -373,4 +453,3 @@ function HorarioContratoForm({
 }
 
 export default HorarioContratoForm;
-
