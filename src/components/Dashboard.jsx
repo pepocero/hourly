@@ -228,14 +228,14 @@ function Dashboard() {
               </button>
             </div>
 
-            <div className={`rounded-lg border p-3 sm:p-4 ${activeTabConfig.filterClass}`}>
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
-                <div className="flex items-center gap-2 sm:pb-2">
+            <div className={`rounded-lg border p-3 sm:p-4 overflow-hidden ${activeTabConfig.filterClass}`}>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 min-w-0">
+                <div className="flex items-center gap-2 sm:pb-2 flex-shrink-0">
                   <Filter className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                   <span className="text-sm font-medium text-blue-900">Periodo</span>
                 </div>
-                <div className="flex flex-1 flex-col sm:flex-row gap-3 sm:gap-4">
-                  <div className="flex-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0 w-full">
+                  <div className="min-w-0">
                     <label className="block text-xs sm:text-sm font-medium text-blue-900/80 mb-1">
                       Fecha inicio
                     </label>
@@ -243,10 +243,10 @@ function Dashboard() {
                       type="date"
                       value={fechaInicio}
                       onChange={(e) => setFechaInicio(e.target.value)}
-                      className="input-field w-full bg-white"
+                      className="input-field w-full max-w-full bg-white"
                     />
                   </div>
-                  <div className="flex-1">
+                  <div className="min-w-0">
                     <label className="block text-xs sm:text-sm font-medium text-blue-900/80 mb-1">
                       Fecha fin
                     </label>
@@ -254,12 +254,12 @@ function Dashboard() {
                       type="date"
                       value={fechaFin}
                       onChange={(e) => setFechaFin(e.target.value)}
-                      className="input-field w-full bg-white"
+                      className="input-field w-full max-w-full bg-white"
                     />
                   </div>
                 </div>
                 {fechaInicio && fechaFin && (
-                  <p className="text-xs sm:text-sm text-blue-800/90 sm:pb-2 sm:max-w-[12rem] sm:text-right">
+                  <p className="text-xs sm:text-sm text-blue-800/90 sm:pb-2 w-full sm:w-auto sm:max-w-[12rem] sm:text-right break-words">
                     {formatDate(fechaInicio)} – {formatDate(fechaFin)}
                   </p>
                 )}

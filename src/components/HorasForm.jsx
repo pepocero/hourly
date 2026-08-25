@@ -71,13 +71,33 @@ function HorasForm({ hora, onClose, onSave }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+
+    // Al elegir o cambiar de proyecto: vaciar el resto y aplicar tarifa del proyecto
+    if (name === 'proyecto_id') {
+      const proyectoSeleccionado = proyectos.find((p) => p.id === parseInt(value, 10));
+      const tarifa = proyectoSeleccionado
+        ? (parseFloat(proyectoSeleccionado.tarifa_hora) || 0).toFixed(2)
+        : '';
+
+      setFormData({
+        proyecto_id: value,
+        fecha: new Date().toISOString().split('T')[0],
+        hora_inicio: '',
+        hora_fin: '',
+        descripcion: '',
+        tarifa_aplicada: tarifa,
+        total: ''
+      });
+      return;
+    }
+
+    setFormData((prev) => ({
       ...prev,
       [name]: value
     }));
 
     // Calcular total automáticamente cuando cambian las horas o la tarifa
-    if (name === 'hora_inicio' || name === 'hora_fin' || name === 'tarifa_aplicada' || name === 'proyecto_id') {
+    if (name === 'hora_inicio' || name === 'hora_fin' || name === 'tarifa_aplicada') {
       calculateTotal(name, value);
     }
   };
@@ -126,18 +146,6 @@ function HorasForm({ hora, onClose, onSave }) {
   };
 
   const calculateTotal = (fieldName, value) => {
-    // Si se selecciona un proyecto, usar su tarifa
-    if (fieldName === 'proyecto_id' && value) {
-      const proyectoSeleccionado = proyectos.find(p => p.id === parseInt(value));
-      if (proyectoSeleccionado) {
-        const tarifa = parseFloat(proyectoSeleccionado.tarifa_hora) || 0;
-        setFormData(prev => ({
-          ...prev,
-          tarifa_aplicada: tarifa.toFixed(2)
-        }));
-      }
-    }
-
     // Calcular duración basada en hora de inicio y fin
     const horaInicio = fieldName === 'hora_inicio' ? value : formData.hora_inicio;
     const horaFin = fieldName === 'hora_fin' ? value : formData.hora_fin;
@@ -232,6 +240,7 @@ function HorasForm({ hora, onClose, onSave }) {
   };
 
   const proyectoNombre = proyectos.find((p) => p.id === parseInt(formData.proyecto_id))?.nombre;
+  const proyectoElegido = !!formData.proyecto_id;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
@@ -282,6 +291,11 @@ function HorasForm({ hora, onClose, onSave }) {
                 </option>
               ))}
             </select>
+            {!proyectoElegido && (
+              <p className="text-xs text-amber-700 mt-1">
+                Selecciona un proyecto para poder completar el horario
+              </p>
+            )}
           </div>
 
           {/* Fecha */}
@@ -294,9 +308,10 @@ function HorasForm({ hora, onClose, onSave }) {
               id="fecha"
               name="fecha"
               required
+              disabled={!proyectoElegido}
               value={formData.fecha}
               onChange={handleChange}
-              className="input-field"
+              className={`input-field ${!proyectoElegido ? 'bg-gray-100 cursor-not-allowed opacity-70' : ''}`}
             />
           </div>
 
@@ -311,9 +326,10 @@ function HorasForm({ hora, onClose, onSave }) {
                 id="hora_inicio"
                 name="hora_inicio"
                 required
+                disabled={!proyectoElegido}
                 value={formData.hora_inicio}
                 onChange={handleChange}
-                className="input-field w-full"
+                className={`input-field w-full ${!proyectoElegido ? 'bg-gray-100 cursor-not-allowed opacity-70' : ''}`}
               />
             </div>
             <div>
@@ -325,9 +341,10 @@ function HorasForm({ hora, onClose, onSave }) {
                 id="hora_fin"
                 name="hora_fin"
                 required
+                disabled={!proyectoElegido}
                 value={formData.hora_fin}
                 onChange={handleChange}
-                className="input-field w-full"
+                className={`input-field w-full ${!proyectoElegido ? 'bg-gray-100 cursor-not-allowed opacity-70' : ''}`}
               />
             </div>
           </div>
@@ -346,11 +363,12 @@ function HorasForm({ hora, onClose, onSave }) {
                   name="tarifa_aplicada"
                   value={formData.tarifa_aplicada}
                   onChange={handleChange}
-                  className="input-field flex-1 min-w-[120px] bg-gray-50"
+                  disabled={!proyectoElegido}
+                  className={`input-field flex-1 min-w-[120px] bg-gray-50 ${!proyectoElegido ? 'cursor-not-allowed opacity-70' : ''}`}
                   placeholder="0.00"
                   readOnly={true}
                 />
-                {hora && formData.proyecto_id && (
+                {hora && proyectoElegido && (
                   <button
                     type="button"
                     onClick={() => updateTarifaActual()}
@@ -362,12 +380,12 @@ function HorasForm({ hora, onClose, onSave }) {
                   </button>
                 )}
               </div>
-              {hora && formData.proyecto_id && (
+              {hora && proyectoElegido && (
                 <p className="text-xs text-gray-500 mt-1">
                   La tarifa/hora se modifica en la edición del proyecto. Usa el botón para actualizar el total con el precio actual.
                 </p>
               )}
-              {!hora && formData.proyecto_id && (
+              {!hora && proyectoElegido && (
                 <p className="text-xs text-gray-500 mt-1">
                   Tarifa del proyecto seleccionado
                 </p>
@@ -384,7 +402,8 @@ function HorasForm({ hora, onClose, onSave }) {
                 name="total"
                 value={formData.total}
                 onChange={handleChange}
-                className="input-field bg-gray-50 w-full"
+                disabled={!proyectoElegido}
+                className={`input-field bg-gray-50 w-full ${!proyectoElegido ? 'cursor-not-allowed opacity-70' : ''}`}
                 placeholder="0.00"
                 readOnly
               />
@@ -403,9 +422,10 @@ function HorasForm({ hora, onClose, onSave }) {
               id="descripcion"
               name="descripcion"
               rows="3"
+              disabled={!proyectoElegido}
               value={formData.descripcion}
               onChange={handleChange}
-              className="input-field"
+              className={`input-field ${!proyectoElegido ? 'bg-gray-100 cursor-not-allowed opacity-70' : ''}`}
               placeholder="Describe el trabajo realizado..."
             />
           </div>
@@ -421,7 +441,7 @@ function HorasForm({ hora, onClose, onSave }) {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !proyectoElegido}
               className="btn-primary flex-1 py-2.5 sm:py-2 text-sm sm:text-base"
             >
               {loading ? 'Guardando...' : 'Guardar'}

@@ -105,11 +105,14 @@ function ProyectoDetails({ proyecto, onClose }) {
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Filtros de fecha */}
-          <div className="card">
-            <div className="flex items-center space-x-4">
-              <Filter className="h-5 w-5 text-gray-500" />
-              <div className="flex space-x-4">
-                <div>
+          <div className="card overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3 min-w-0">
+              <div className="flex items-center gap-2 sm:pb-2 flex-shrink-0">
+                <Filter className="h-5 w-5 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700 sm:hidden">Periodo</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 min-w-0 w-full">
+                <div className="min-w-0">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Fecha inicio
                   </label>
@@ -117,10 +120,10 @@ function ProyectoDetails({ proyecto, onClose }) {
                     type="date"
                     value={fechaInicio}
                     onChange={(e) => setFechaInicio(e.target.value)}
-                    className="input-field"
+                    className="input-field w-full max-w-full"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Fecha fin
                   </label>
@@ -128,7 +131,7 @@ function ProyectoDetails({ proyecto, onClose }) {
                     type="date"
                     value={fechaFin}
                     onChange={(e) => setFechaFin(e.target.value)}
-                    className="input-field"
+                    className="input-field w-full max-w-full"
                   />
                 </div>
               </div>
